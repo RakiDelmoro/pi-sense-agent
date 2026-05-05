@@ -101,9 +101,9 @@ const loadedSensors = new Map<string, { container: HTMLElement; style: HTMLEleme
 
 async function loadSensor(name: string) {
   const [htmlRes, cssRes, tsRes] = await Promise.all([
-    fetch(`/api/sensors/${name}/car.html`),
-    fetch(`/api/sensors/${name}/car.css`),
-    fetch(`/api/sensors/${name}/car.ts`),
+    fetch(`/api/sensors/${name}/sensor.html`),
+    fetch(`/api/sensors/${name}/sensor.css`),
+    fetch(`/api/sensors/${name}/sensor.ts`),
   ]);
 
   if (!htmlRes.ok || !cssRes.ok || !tsRes.ok) {

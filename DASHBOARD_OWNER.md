@@ -1,6 +1,6 @@
 ---
 name: dashboard-owner
-description: Build sensors for the PiSense Dashboard — create car.html, car.css, car.ts, register pipeline entries, and validate. Use when creating or modifying dashboard sensors.
+description: Build sensors for the PiSense Dashboard — create sensor.html, sensor.css, sensor.ts, register pipeline entries, and validate. Use when creating or modifying dashboard sensors.
 ---
 
 # 🚗 Dashboard Owner Skill
@@ -29,9 +29,9 @@ Every sensor lives in its own folder under `sensors/` with **exactly** three fil
 ```
 sensors/
 └── <sensor-name>/
-    ├── car.html    ← the gauge markup
-    ├── car.css     ← scoped styles
-    └── car.ts      ← logic using the pisense API
+    ├── sensor.html    ← the gauge markup
+    ├── sensor.css     ← scoped styles
+    └── sensor.ts      ← logic using the pisense API
 ```
 
 **Rules:**
@@ -81,14 +81,14 @@ Returns the raw InfluxDB JSON result. Structure depends on your Flux query.
 
 ---
 
-## `car.html` Conventions
+## `sensor.html` Conventions
 
 Your HTML is injected into a container with class `sensor-card sensor-card--<name>`.
 
 - Keep it minimal — just the visual structure
 - Use semantic class names prefixed with your sensor name
 - No `<html>`, `<head>`, or `<body>` tags — you're building a fragment, not a page
-- No `<script>` or `<style>` tags here — logic goes in `car.ts`, styles in `car.css`
+- No `<script>` or `<style>` tags here — logic goes in `sensor.ts`, styles in `sensor.css`
 
 Example:
 
@@ -102,7 +102,7 @@ Example:
 
 ---
 
-## `car.css` Conventions
+## `sensor.css` Conventions
 
 ### Scoping (MANDATORY)
 
@@ -144,14 +144,14 @@ The dashboard uses a dark, retro-pixel aesthetic. Match it:
 
 ---
 
-## `car.ts` Conventions
+## `sensor.ts` Conventions
 
 Your TypeScript runs in the browser after your HTML and CSS are injected.
 
 ### Structure
 
 ```typescript
-// 1. Grab DOM elements from your car.html
+// 1. Grab DOM elements from your sensor.html
 const value = document.querySelector('.room-temp__value') as HTMLElement;
 const card = document.querySelector('.sensor-card--room-temp') as HTMLElement;
 let hasData = false;
@@ -321,7 +321,7 @@ To receive MQTT data into InfluxDB, you must register a subscription in `pipelin
 
 A simple numeric display that shows the current temperature, polled every 5 seconds.
 
-### `sensors/room-temp/car.html`
+### `sensors/room-temp/sensor.html`
 
 ```html
 <div class="room-temp__gauge">
@@ -331,7 +331,7 @@ A simple numeric display that shows the current temperature, polled every 5 seco
 </div>
 ```
 
-### `sensors/room-temp/car.css`
+### `sensors/room-temp/sensor.css`
 
 ```css
 .sensor-card--room-temp .room-temp__gauge {
@@ -382,7 +382,7 @@ A simple numeric display that shows the current temperature, polled every 5 seco
 }
 ```
 
-### `sensors/room-temp/car.ts`
+### `sensors/room-temp/sensor.ts`
 
 ```typescript
 const valueEl = document.querySelector('.room-temp__value') as HTMLElement;
@@ -438,7 +438,7 @@ pisense.onUnmount(() => {
 
 A horizontal bar that fills based on humidity percentage, with an alert state above 70%.
 
-### `sensors/humidity-bar/car.html`
+### `sensors/humidity-bar/sensor.html`
 
 ```html
 <div class="humidity-bar__container">
@@ -453,7 +453,7 @@ A horizontal bar that fills based on humidity percentage, with an alert state ab
 </div>
 ```
 
-### `sensors/humidity-bar/car.css`
+### `sensors/humidity-bar/sensor.css`
 
 ```css
 .sensor-card--humidity-bar .humidity-bar__container {
@@ -521,7 +521,7 @@ A horizontal bar that fills based on humidity percentage, with an alert state ab
 }
 ```
 
-### `sensors/humidity-bar/car.ts`
+### `sensors/humidity-bar/sensor.ts`
 
 ```typescript
 const fillEl = document.querySelector('.humidity-bar__fill') as HTMLElement;
@@ -613,7 +613,7 @@ This checks:
 - CSS parses without errors
 - HTML structure is valid
 - `pipeline.json` entry exists and is well-formed
-- All three files (`car.html`, `car.css`, `car.ts`) are present
+- All three files (`sensor.html`, `sensor.css`, `sensor.ts`) are present
 
 ### Step 2: Visual Validation
 

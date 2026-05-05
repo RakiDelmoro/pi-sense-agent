@@ -4,6 +4,19 @@ import { join } from "node:path";
 
 // ── Config ──
 const PORT = 3000;
+
+// ── Kill existing process on port ──
+function killPort(port: number): Promise<void> {
+  return new Promise((resolve) => {
+    const proc = Bun.spawnSync(["lsof", "-i", `:${port}`, "-t"], { stdout: "pipe" });
+    const pids = proc.stdout.toString().trim().split("\n").filter(Boolean);
+    if (pids.length === 0) return resolve();
+    for (const pid of pids) {
+      try { process.kill(Number(pid), "SIGKILL"); } catch {}
+    }
+    setTimeout(resolve, 500);
+  });
+}
 const SENSORS_DIR = join(import.meta.dir, "sensors");
 const PUBLIC_DIR = join(import.meta.dir, "public");
 const PIPELINE_PATH = join(import.meta.dir, "pipeline.json");
@@ -367,6 +380,7 @@ async function reloadPipelineSubscriptions() {
 setInterval(updateStatus, 30000);
 
 // ── Server ──
+await killPort(PORT);
 const server = Bun.serve({
   port: PORT,
   async fetch(req) {
@@ -386,9 +400,9 @@ const server = Bun.serve({
         return Response.json(sensors);
       }
 
-      // GET /api/sensors/:name/car.html|css|ts — serve sensor files
+      // GET /api/sensors/:name/sensor.html|css|ts — serve sensor files
       const sensorFileMatch = path.match(
-        /^\/api\/sensors\/([^/]+)\/(car\.(html|css|ts))$/
+        /^\/api\/sensors\/([^/]+)\/(sensor\.(html|css|ts))$/
       );
       if (sensorFileMatch && req.method === "GET") {
         const [, name, file, ext] = sensorFileMatch;
@@ -514,6 +528,24 @@ const server = Bun.serve({
 
     // ── Static files from public/ ──
     const staticPath = path === "/" ? "/index.html" : path;
+
+    // Serve app.js by transpiling app.ts on-the-fly
+    if (staticPath === "/app.js") {
+      const tsPath = join(PUBLIC_DIR, "/app.ts");
+      try {
+        const result = await Bun.build({
+          entrypoints: [tsPath],
+          target: "browser",
+        });
+        const code = await result.outputs[0].text();
+        return new Response(code, {
+          headers: { "Content-Type": "application/javascript" },
+        });
+      } catch (err: any) {
+        return new Response(`Build error: ${err.message}`, { status: 500 });
+      }
+    }
+
     const filePath = join(PUBLIC_DIR, staticPath);
     const bunFile = Bun.file(filePath);
 

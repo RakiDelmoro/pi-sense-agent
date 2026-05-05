@@ -41,7 +41,7 @@ try {
 }
 
 // 2. Check all three files exist
-const requiredFiles = ["car.html", "car.css", "car.ts"];
+const requiredFiles = ["sensor.html", "sensor.css", "sensor.ts"];
 for (const file of requiredFiles) {
   const filePath = join(sensorDir, file);
   try {
@@ -57,7 +57,7 @@ for (const file of requiredFiles) {
 }
 
 // 3. Check CSS scoping
-const cssPath = join(sensorDir, "car.css");
+const cssPath = join(sensorDir, "sensor.css");
 try {
   const css = await readFile(cssPath, "utf-8");
   const scopeClass = `.sensor-card--${sensorName}`;
@@ -84,11 +84,11 @@ try {
     }
   }
 } catch {
-  fail("Cannot read car.css for scoping check");
+  fail("Cannot read sensor.css for scoping check");
 }
 
 // 4. Check HTML structure
-const htmlPath = join(sensorDir, "car.html");
+const htmlPath = join(sensorDir, "sensor.html");
 try {
   const html = await readFile(htmlPath, "utf-8");
   const hasScript = html.includes("<script");
@@ -98,16 +98,16 @@ try {
   if (!hasScript && !hasStyle && !hasHtml) {
     ok("HTML is a fragment (no <script>, <style>, <html>, <body>)");
   } else {
-    if (hasScript) fail("HTML contains <script> tags — logic goes in car.ts");
-    if (hasStyle) fail("HTML contains <style> tags — styles go in car.css");
+    if (hasScript) fail("HTML contains <script> tags — logic goes in sensor.ts");
+    if (hasStyle) fail("HTML contains <style> tags — styles go in sensor.css");
     if (hasHtml) fail("HTML contains <html>/<body>/<head> — use a fragment only");
   }
 } catch {
-  fail("Cannot read car.html for structure check");
+  fail("Cannot read sensor.html for structure check");
 }
 
 // 5. Check TS compiles
-const tsPath = join(sensorDir, "car.ts");
+const tsPath = join(sensorDir, "sensor.ts");
 try {
   const ts = await readFile(tsPath, "utf-8");
   // Use Bun.build with a temporary file as entrypoint
@@ -175,9 +175,9 @@ try {
   if (hasHasData && hasLiveClass && hasLiveCss) {
     ok("Waiting → live transition implemented (hasData + --live class)");
   } else {
-    if (!hasHasData) fail("car.ts missing hasData flag for waiting → live transition");
-    if (!hasLiveClass) fail("car.ts missing --live class toggle");
-    if (!hasLiveCss) fail("car.css missing --live modifier styles");
+    if (!hasHasData) fail("sensor.ts missing hasData flag for waiting → live transition");
+    if (!hasLiveClass) fail("sensor.ts missing --live class toggle");
+    if (!hasLiveCss) fail("sensor.css missing --live modifier styles");
   }
 } catch {
   fail("Cannot check waiting → live transition");
