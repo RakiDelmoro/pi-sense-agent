@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PiSense Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Press+Start+2P&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="scanlines"></div>
+    <header class="header">
+      <h1 class="title">▌ PiSense Dashboard</h1>
+      <div class="status">
+        <span class="status__indicator" id="status-influx"></span>
+        <span class="status__indicator" id="status-mqtt"></span>
+      </div>
+    </header>
+    <main class="main">
+      <div class="empty-state" id="empty-state">
+        <p class="empty-state__title">Your sensors live here</p>
+        <p class="empty-state__prompt" id="cycling-prompt"></p>
+      </div>
+      <div class="sensor-grid" id="sensor-grid"></div>
+    </main>
+    <div class="modal" id="confirm-modal">
+      <div class="modal__box">
+        <p class="modal__text" id="modal-text"></p>
+        <div class="modal__actions">
+          <button class="modal__btn modal__btn--confirm" id="modal-confirm">REMOVE</button>
+          <button class="modal__btn modal__btn--cancel" id="modal-cancel">CANCEL</button>
+        </div>
+      </div>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>

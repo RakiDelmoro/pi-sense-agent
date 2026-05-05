@@ -1,0 +1,22 @@
+{
+  "childSessionId": "9710e7bf-02b1-4b59-b4fe-c1bb93bb56d7",
+  "runId": "41095c9e-e2db-4da2-9361-76e2b18fcad2",
+  "rootRunId": "41095c9e-e2db-4da2-9361-76e2b18fcad2",
+  "ownerModeId": "builder",
+  "parentSessionId": "/root/.pi/agent/sessions/--workspaces-pi-sense-agent--/2026-05-05T14-36-29-271Z_019df891-aad6-73d3-b6e3-664cb5a64a05.jsonl",
+  "parentSessionFile": "/root/.pi/agent/sessions/--workspaces-pi-sense-agent--/2026-05-05T14-36-29-271Z_019df891-aad6-73d3-b6e3-664cb5a64a05.jsonl",
+  "requestShape": "single",
+  "async": false,
+  "context": "fresh",
+  "agent": "reviewer",
+  "childIndex": 0,
+  "childKey": "single:0",
+  "branchKey": "single:0",
+  "status": "failed",
+  "taskSummary": "Review the current working tree diff in /workspaces/pi-sense-agent. This is a significant implementation covering: 1) Full rewrite of server.ts with API routes, WebSocket, MQTT→InfluxDB pipeline, file watcher 2) Validation scripts (scripts/validate-sensor.ts, scripts/screenshot-sensor.ts) 3) DASHBOARD_OWNER.md skill file with frontmatter 4) .pi/settings.json for skill loading 5) Test sensor in sensors/test/ 6) pipeline.json. Focus on: correctness, regressions, security risks, and validation gaps. Run `git diff` and `git diff --cached` to see the changes. Also check the server.ts for the Bun.serve websocket pattern and the API route handling.",
+  "createdAt": 1777994234304,
+  "updatedAt": 1777994237773,
+  "executionChildId": "9710e7bf-02b1-4b59-b4fe-c1bb93bb56d7",
+  "completedAt": 1777994237773,
+  "error": "Error: Model \"ppq/z-ai/glm-5.1:medium\" not found. Use --list-models to see available models."
+}

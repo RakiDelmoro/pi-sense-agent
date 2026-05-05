@@ -1,0 +1,11 @@
+{
+  "subscriptions": [
+    {
+      "sensor": "test",
+      "mqtt_topic": "test",
+      "measurement": "test",
+      "fields": { "value": "float" },
+      "data_format": "json"
+    }
+  ]
+}

@@ -1,0 +1,12 @@
+{
+  "name": "pi-sense-agent",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "bun run server.ts",
+    "validate": "bun run scripts/validate-sensor.ts",
+    "screenshot": "bun run scripts/screenshot-sensor.ts"
+  },
+  "dependencies": {
+    "mqtt": "^5.15.1"
+  }
+}
