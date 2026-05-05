@@ -1,11 +1,15 @@
 {
   "subscriptions": [
     {
-      "sensor": "test",
+      "sensor": "TEST",
       "mqtt_topic": "test",
+      "mqtt_broker": "tcp://localhost:1883",
       "measurement": "test",
-      "fields": { "value": "float" },
-      "data_format": "json"
+      "data_format": "value",
+      "fields": {
+        "value": "float"
+      },
+      "tags": {}
     }
   ]
 }

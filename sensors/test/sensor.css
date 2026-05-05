@@ -1,0 +1,57 @@
+.sensor-card--TEST .gauge {
+  position: relative;
+  width: 100%;
+  max-width: 260px;
+  margin: 0 auto;
+  padding: 1.5rem 1rem 1rem;
+  opacity: 0.4;
+  transition: opacity 0.6s ease;
+}
+
+.sensor-card--TEST--live .gauge {
+  opacity: 1;
+}
+
+.sensor-card--TEST .gauge__svg {
+  width: 100%;
+  height: auto;
+  filter: drop-shadow(0 0 6px rgba(74, 158, 255, 0.08));
+}
+
+.sensor-card--TEST--live .gauge__svg {
+  filter: drop-shadow(0 0 8px rgba(74, 158, 255, 0.15));
+}
+
+.sensor-card--TEST .gauge__track {
+  opacity: 0.5;
+}
+
+.sensor-card--TEST .gauge__fill {
+  transition: stroke-dasharray 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sensor-card--TEST .gauge__center {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -46%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.sensor-card--TEST .gauge__value {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 1.1rem;
+  color: var(--text);
+  letter-spacing: 1px;
+}
+
+.sensor-card--TEST .gauge__label {
+  font-family: 'Press Start 2P', monospace;
+  font-size: 0.45rem;
+  color: var(--text-dim);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
