@@ -37,7 +37,7 @@ start_influxdb() {
 
 # ── Setup InfluxDB (first-run only) ──
 setup_influxdb() {
-  if [ -f /var/lib/influxdb2/influxd.bolt ]; then
+  if [ -f /root/.influxdbv2/influxd.bolt ]; then
     return
   fi
 
