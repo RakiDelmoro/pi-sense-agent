@@ -9,7 +9,9 @@
       "fields": {
         "value": "float"
       },
-      "tags": {}
+      "tags": {
+        "sensor": "TEST"
+      }
     }
   ]
 }

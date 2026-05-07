@@ -1,13 +1,13 @@
 ---
 name: dashboard-owner
-description: Build sensors for the PiSense Dashboard — create sensor.html, sensor.css, sensor.ts, register pipeline entries, and validate. Use when creating or modifying dashboard sensors.
+description: Build sensors for the PiSense Dashboard — create sensor.html, sensor.css, sensor.ts, register pipeline entries, and validate. A sensor can be any visual the user needs: a gauge, a table, a map, a status panel, an animation, or anything else. Use when creating or modifying dashboard sensors.
 ---
 
 # 🚗 Dashboard Owner Skill
 
-You are the **dashboard owner**. You build sensors — visual gauges, charts, and indicators that live on the PiSense Dashboard.
+You are the **dashboard owner**. You build sensors — visual components that live on the PiSense Dashboard. A sensor can be anything the user wants: a numeric readout, a chart, a table, a map, a status panel, an animation, or any other visual representation of data.
 
-Think of it like a car instrument panel: each sensor is a gauge, and you wire it up to real data coming in over MQTT through InfluxDB.
+Think of it like a control room display: each sensor is a visual element — it could be a gauge, a table, a map, or anything else — and you wire it up to real data coming in over MQTT through InfluxDB.
 
 ---
 
@@ -15,8 +15,8 @@ Think of it like a car instrument panel: each sensor is a gauge, and you wire it
 
 | Concept | What it means |
 |---------|---------------|
-| **Dashboard** | The car instrument panel — a dark, pixel-aesthetic grid where sensors live |
-| **Sensor** | A single gauge/indicator — one card in the grid |
+| **Dashboard** | The control room display — a dark, pixel-aesthetic grid where sensors live |
+| **Sensor** | A single visual element — one card in the grid, shaped however the user needs |
 | **Builder** | You — you craft the HTML, CSS, and TS that make a sensor work |
 | **Pipeline** | The MQTT→InfluxDB wiring that feeds data to your sensor |
 
@@ -29,7 +29,7 @@ Every sensor lives in its own folder under `sensors/` with **exactly** three fil
 ```
 sensors/
 └── <sensor-name>/
-    ├── sensor.html    ← the gauge markup
+    ├── sensor.html    ← the visual markup
     ├── sensor.css     ← scoped styles
     └── sensor.ts      ← logic using the pisense API
 ```
@@ -221,15 +221,19 @@ When you create a sensor, the MQTT device usually isn't publishing yet. The sens
 
 ```css
 /* Waiting state — dimmed by default */
-.sensor-card--<name> .<name>__gauge {
+.sensor-card--<name> .<name>__content {
   opacity: 0.4;
   transition: opacity 0.6s ease;
 }
 
 /* Live state — full brightness */
-.sensor-card--<name>--live .<name>__gauge {
+.sensor-card--<name>--live .<name>__content {
   opacity: 1;
 }
+
+/* Note: Use a descriptive BEM element name that matches what the sensor
+   actually is — __gauge for a gauge, __table for a table, __map for a map,
+   etc. Replace __content with a meaningful name for your specific sensor. */
 
 /* Status dot */
 .sensor-card--<name> .<name>__dot {
@@ -271,7 +275,7 @@ async function update() {
 - **Zero new plumbing** — no server changes, no `pisense` API additions
 - **Self-contained** — each sensor owns its own state transition
 - **Graceful** — if a sensor doesn't implement it, it still works, just without the visual indicator
-- **Matches the metaphor** — a car gauge that hasn't received a signal yet is dim; it lights up when the signal arrives
+- **Matches the metaphor** — a display element that hasn't received a signal yet is dim; it lights up when the signal arrives
 
 ---
 
@@ -595,14 +599,13 @@ pisense.onUnmount(() => {
 6. **No external dependencies** — only vanilla HTML/CSS/TS and the `pisense` API
 7. **Ask before assuming** — if you don't know the MQTT topic, measurement name, or field names, ask
 8. **Implement waiting → live transition** — every sensor must start dimmed (waiting) and light up (live) on first data. Include a status dot and the `--live` modifier class
+9. **Ask when the visual type is ambiguous** — if the user's request doesn't specify what kind of visual they want, briefly offer 2–3 options (e.g. "a live sparkline, a table, or a numeric readout") and ask which they prefer. If the request is specific, just build it — no suggestions needed
 
 ---
 
 ## Validation (MANDATORY)
 
-After creating a sensor, you **must** run both validation steps. Do not declare the task done until both pass.
-
-### Step 1: Structural Validation
+After creating a sensor, you **must** run structural validation. Do not declare the task done until it passes.
 
 ```bash
 bun run scripts/validate-sensor.ts <sensor-name>
@@ -614,31 +617,15 @@ This checks:
 - HTML structure is valid
 - `pipeline.json` entry exists and is well-formed
 - All three files (`sensor.html`, `sensor.css`, `sensor.ts`) are present
-
-### Step 2: Visual Validation
-
-```bash
-bun run scripts/screenshot-sensor.ts <sensor-name>
-```
-
-This uses Playwright to:
-- Launch the dashboard
-- Take a screenshot of the sensor card
-- Save to `screenshots/<sensor-name>.png`
-- Dump the rendered DOM for inspection
-
-Open the screenshot and verify:
-- The sensor renders correctly
-- Text is readable
-- Layout is not broken
-- Colors match the dashboard aesthetic
+- CSS is scoped correctly
+- Waiting → live transition is implemented
 
 ### Validation Loop
 
-If either step fails:
+If validation fails:
 1. Read the error output
 2. Fix the issue
-3. Re-run both steps
-4. Repeat until both pass
+3. Re-run validation
+4. Repeat until it passes
 
-**Only after both steps pass** can you declare the sensor complete.
+**Only after validation passes** can you declare the sensor complete.

@@ -3,7 +3,7 @@ import { watch } from "node:fs";
 import { join } from "node:path";
 
 // ── Config ──
-const PORT = 3000;
+const PORT = Number(process.env.PORT) || 3000;
 
 // ── Kill existing process on port ──
 function killPort(port: number): Promise<void> {
@@ -29,6 +29,11 @@ const INFLUX_BUCKET = process.env.INFLUX_BUCKET || "sensors";
 
 // ── MQTT Config ──
 const MQTT_BROKER = process.env.MQTT_BROKER || "tcp://localhost:1883";
+
+// ── Config Log ──
+console.log(`[config] PORT=${PORT}`);
+console.log(`[config] INFLUX_URL=${INFLUX_URL} ORG=${INFLUX_ORG} BUCKET=${INFLUX_BUCKET}`);
+console.log(`[config] MQTT_BROKER=${MQTT_BROKER}`);
 
 // ── State ──
 const wsClients = new Set<WebSocket>();
@@ -119,11 +124,16 @@ async function queryInflux(flux: string): Promise<any> {
         signal: AbortSignal.timeout(10000),
       }
     );
+    const text = await res.text();
     if (!res.ok) {
-      const text = await res.text();
       return { error: text };
     }
-    return await res.json();
+    // InfluxDB may return CSV or JSON — handle both
+    try {
+      return JSON.parse(text);
+    } catch {
+      return text; // CSV — callers use parseInfluxCsv()
+    }
   } catch (err: any) {
     return { error: err.message };
   }
@@ -318,6 +328,39 @@ async function startMqttPipeline() {
 }
 
 // ── File Watcher ──
+const pendingAnnouncements = new Map<string, ReturnType<typeof setTimeout>>();
+
+function announceSensor(name: string) {
+  // Debounce: reset timer on each call
+  if (pendingAnnouncements.has(name)) {
+    clearTimeout(pendingAnnouncements.get(name)!);
+  }
+  pendingAnnouncements.set(name, setTimeout(async () => {
+    pendingAnnouncements.delete(name);
+    // Verify all 3 files exist and are non-empty before announcing
+    const sensorDir = join(SENSORS_DIR, name);
+    const requiredFiles = ["sensor.html", "sensor.css", "sensor.ts"];
+    let allReady = true;
+    for (const file of requiredFiles) {
+      try {
+        const s = await stat(join(sensorDir, file));
+        if (!s.isFile() || s.size === 0) {
+          allReady = false;
+          break;
+        }
+      } catch {
+        allReady = false;
+        break;
+      }
+    }
+    if (allReady) {
+      broadcast({ type: "sensor-added", name });
+    }
+    // If not all ready, don't broadcast — the watcher will fire again
+    // when the remaining files are written
+  }, 500));
+}
+
 function startFileWatcher() {
   try {
     watch(SENSORS_DIR, { recursive: false }, async (event, filename) => {
@@ -327,13 +370,17 @@ function startFileWatcher() {
         const s = await stat(fullPath);
         if (s.isDirectory()) {
           if (event === "rename") {
-            // New sensor folder created
-            broadcast({ type: "sensor-added", name: filename });
+            // Debounce announcement until all files are ready
+            announceSensor(filename);
           }
         }
       } catch {
-        // Directory was removed
+        // Directory was removed — announce immediately
         if (event === "rename") {
+          if (pendingAnnouncements.has(filename)) {
+            clearTimeout(pendingAnnouncements.get(filename)!);
+            pendingAnnouncements.delete(filename);
+          }
           broadcast({ type: "sensor-removed", name: filename });
         }
       }
