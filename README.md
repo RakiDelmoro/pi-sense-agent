@@ -1,88 +1,52 @@
 # PiSense Dashboard
 
-A dark, retro-pixel dashboard for IoT sensors. Receives data over MQTT, stores it in InfluxDB, and displays real-time sensor cards in the browser.
-
-## Architecture
-
-```
-Sensors (ESP32, Pi, scripts)
-       │ MQTT publish
-       ▼
-  Mosquitto (:1883)
-       │
-       ▼
-  Dashboard (Bun :3000) ──▶ InfluxDB (:8086)
-       │                         │
-       ▼                         ▼
-  Browser UI              Store & query data
-```
+A dark, retro-pixel dashboard for IoT sensors — powered by [Pi](https://pi.dev/). Tell Pi what to sense, and it builds the sensor for you.
 
 ## Prerequisites
 
 - [Bun](https://bun.sh/) (auto-installed by devcontainer)
+- [Pi](https://pi.dev/) (installed by `bun run setup`)
 
 ## Getting Started
 
-### Devcontainer (recommended)
+```bash
+bun run setup   # Install InfluxDB, Mosquitto, Pi, dependencies, and create .env
+```
 
-Open this repo in VS Code with the Dev Containers extension. Bun is auto-installed — then run:
+> **💡 Tip:** Edit `.env` now to set your InfluxDB credentials, org, and bucket. Onboarding runs once on first `bun run dev` — if you change credentials afterwards, the dashboard will fail to connect. To reset InfluxDB and start fresh: `rm -rf /var/lib/influxdb2/influxd.bolt /var/lib/influxdb2/engine`
 
 ```bash
-bun run setup   # Install InfluxDB, Mosquitto, dependencies, and create .env
 bun run dev     # Start everything
 ```
 
-Open http://localhost:3000 in your browser.
+Open http://localhost:3000 in your browser. Press **Ctrl+C** to stop — the script cleans up all services on exit.
 
-### Manual setup
+## Adding Sensors
 
-```bash
-bun run setup   # Install all dependencies + create .env
-bun run dev     # Start InfluxDB, Mosquitto, and the dashboard
-```
-
-Press **Ctrl+C** to stop — the script cleans up all services on exit.
-
-## Built-in Sensors
-
-| Sensor | Widget | MQTT Topic | Description |
-|--------|--------|------------|-------------|
-| `TEST` | Gauge (0–100) | `test` | Single-value gauge, polls every 3s |
-
-See `pipeline.json` for the full list of MQTT subscriptions.
-
-## Testing MQTT
-
-Publish a test value to the `test` topic (plain float, not JSON):
+Launch Pi:
 
 ```bash
-# Using mosquitto_pub
-mosquitto_pub -h localhost -p 1883 -t "test" -m "42.5"
-
-# Or use the built-in test publisher
-MQTT_TOPIC=test bun run scripts/publish-test.ts
+pi
 ```
 
-> **Note:** The `publish-test.ts` script sends JSON by default (`{"value": 22.5}`).
-> Set `MQTT_TOPIC` to match your pipeline subscription.
+> **First time?** Pi needs an AI model configured before use. You can either:
+> - Set an API key: `export ANTHROPIC_API_KEY=sk-ant-...` (or `OPENAI_API_KEY`, etc.), then run `pi`
+> - Or use a subscription: run `pi`, then type `/login` and select your provider
+>
+> After logging in, pick a model with `/model` (or Ctrl+L). See [Pi providers & models](https://pi.dev/models) for all options.
 
-## Creating Sensors
+First, earn the sensor builder skill — paste this:
 
-See `DASHBOARD_OWNER.md` for the full sensor-building guide. Quick summary:
+```
+Read DASHBOARD_OWNER.md and save it as a Pi skill at ~/.pi/skills/dashboard-owner/SKILL.md
+```
 
-1. Create `sensors/<name>/sensor.html`, `sensor.css`, `sensor.ts`
-2. Add a pipeline entry to `pipeline.json`
-3. Run `bun run validate <sensor-name>`
+Now describe any sensor and Pi builds it:
+- "Gauge sensor on topic room/temp, min 0 max 50"
+- "History chart on topic server/cpu, range 0 to 100"
+- "Status panel on topic door/entrance, show open or closed"
 
-## Scripts
-
-| Command | Description |
-|---------|-------------|
-| `bun run setup` | Install all dependencies + create `.env` (run once) |
-| `bun run dev` | Start InfluxDB + Mosquitto + dashboard |
-| `bun run validate <name>` | Validate a sensor's file structure |
-| `bun run scripts/publish-test.ts` | Publish random test values to MQTT |
-| `bash scripts/install-deps.sh` | Install InfluxDB + Mosquitto only |
+Pi builds HTML, CSS, TypeScript, and pipeline registration. The card appears on the dashboard automatically.
 
 ## Configuration
 
