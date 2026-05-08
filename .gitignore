@@ -3,3 +3,4 @@ screenshots/
 .pi
 public/*.js
 .env
+PRODUCTION.md

@@ -12,15 +12,11 @@
   <body>
     <div class="scanlines"></div>
     <header class="header">
-      <h1 class="title">▌ PiSense Dashboard</h1>
-      <div class="status">
-        <span class="status__indicator" id="status-influx"></span>
-        <span class="status__indicator" id="status-mqtt"></span>
-      </div>
+      <h1 class="title">PiSense Dashboard <span class="status__dot" id="status-dot"></span></h1>
     </header>
     <main class="main">
       <div class="empty-state" id="empty-state">
-        <p class="empty-state__title">Your sensors live here</p>
+        <p class="empty-state__title">Tell Pi what to sense</p>
         <p class="empty-state__prompt" id="cycling-prompt"></p>
       </div>
       <div class="sensor-grid" id="sensor-grid"></div>

@@ -163,24 +163,44 @@ try {
   fail("Cannot read or parse pipeline.json");
 }
 
-// 7. Check waiting → live transition
+// 7. Check last-seen indicator
 try {
-  const ts = await readFile(tsPath, "utf-8");
+  const html = await readFile(htmlPath, "utf-8");
   const css = await readFile(cssPath, "utf-8");
+  const ts = await readFile(tsPath, "utf-8");
 
-  const hasHasData = ts.includes("hasData");
-  const hasLiveClass = ts.includes("--live");
-  const hasLiveCss = css.includes("--live");
+  const hasLastSeenHtml = html.includes(`${sensorName}-last-seen`);
+  const hasLastSeenCss = css.includes(`__last-seen`);
+  const hasLastSeenTs = ts.includes('last-seen') || ts.includes('lastSeenEl');
+  const hasRelativeTime = ts.includes('formatRelativeTime') || ts.includes('s ago');
+  const hasLiveClass = ts.includes('--live');
+  const hasLiveCss = css.includes('--live');
 
-  if (hasHasData && hasLiveClass && hasLiveCss) {
-    ok("Waiting → live transition implemented (hasData + --live class)");
-  } else {
-    if (!hasHasData) fail("sensor.ts missing hasData flag for waiting → live transition");
-    if (!hasLiveClass) fail("sensor.ts missing --live class toggle");
-    if (!hasLiveCss) fail("sensor.css missing --live modifier styles");
+  // No opacity dimming allowed
+  const hasDimOpacity = /opacity:\s*0\.[0-4]\b/.test(css);
+
+  if (hasLastSeenHtml) ok('HTML has last-seen indicator element');
+  else fail('HTML missing last-seen indicator (add <span class="<name>__last-seen" id="<name>-last-seen">--</span>)');
+
+  if (hasLastSeenCss) ok('CSS has __last-seen style');
+  else fail('CSS missing __last-seen style');
+
+  if (hasLastSeenTs) ok('TS references last-seen element');
+  else fail('TS missing last-seen element reference');
+
+  if (hasRelativeTime) ok('TS has relative-time formatting');
+  else fail('TS missing relative-time formatting (formatRelativeTime)');
+
+  if (hasLiveClass && hasLiveCss) ok('Live class toggle for dot color (--live)');
+  else {
+    if (!hasLiveClass) fail('sensor.ts missing --live class toggle');
+    if (!hasLiveCss) fail('sensor.css missing --live modifier for dot');
   }
+
+  if (!hasDimOpacity) ok('No dim opacity on sensor card');
+  else fail('Sensor card has opacity < 0.5 — cards must always be fully visible');
 } catch {
-  fail("Cannot check waiting → live transition");
+  fail('Cannot check last-seen indicator');
 }
 
 // ── Summary ──

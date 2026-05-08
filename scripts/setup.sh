@@ -33,14 +33,40 @@ else
   echo "[setup] InfluxDB + Mosquitto already installed"
 fi
 
-# 4. Create .env from .env.example if missing
+# 4. Create .env with dev-ready defaults if missing
 if [ ! -f ".env" ]; then
-  cp .env.example .env
-  echo "[setup] Created .env from .env.example — edit it with your credentials"
+  cat > .env << "ENVEOF"
+# ── Dashboard ──
+PORT=3000
+
+# ── InfluxDB ──
+INFLUX_URL=http://localhost:8086
+INFLUX_TOKEN=dev-setup-token
+INFLUX_ORG=pisense
+INFLUX_BUCKET=sensors
+
+# ── InfluxDB Setup (first-run only) ──
+INFLUX_ADMIN_USERNAME=admin
+INFLUX_ADMIN_PASSWORD=devpassword
+INFLUX_SETUP_TOKEN=dev-setup-token
+
+# ── MQTT (Mosquitto) ──
+MQTT_BROKER=tcp://localhost:1883
+ENVEOF
+  echo "[setup] Created .env with dev defaults"
 else
   echo "[setup] .env already exists"
+fi
+
+# 5. Install Pi coding agent
+if ! command -v pi &>/dev/null; then
+  echo "[setup] Installing Pi coding agent..."
+  npm install -g @mariozechner/pi-coding-agent 2>/dev/null || npm install -g @judepayne/picode 2>/dev/null || echo "[setup] WARNING: Could not install Pi. Install manually from https://github.com/MarioZechner/pi-coding-agent"
+else
+  echo "[setup] Pi already installed: $(pi --version 2>/dev/null || echo "found")"
 fi
 
 echo ""
 echo "[setup] ✅ Setup complete!"
 echo "[setup] Run 'bun run dev' to start the dashboard."
+echo "[setup] Run 'pi' to launch the coding agent and add sensors."

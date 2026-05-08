@@ -1,31 +1,12 @@
-<div class="gauge" id="gauge-TEST">
-  <div class="gauge__label">TEST</div>
-  <div class="gauge__body">
-    <svg viewBox="0 0 200 200" class="gauge__svg">
-      <!-- Background arc -->
-      <circle
-        class="gauge__bg"
-        cx="100" cy="100" r="80"
-        fill="none"
-        stroke="var(--gauge-bg, #1a1a2e)"
-        stroke-width="16"
-        stroke-dasharray="376.99 125.66"
-        stroke-linecap="round"
-        transform="rotate(135 100 100)"
-      />
-      <!-- Value arc -->
-      <circle
-        class="gauge__fill"
-        cx="100" cy="100" r="80"
-        fill="none"
-        stroke="var(--gauge-accent, #00ff88)"
-        stroke-width="16"
-        stroke-dasharray="0 502.65"
-        stroke-linecap="round"
-        transform="rotate(135 100 100)"
-      />
-    </svg>
-    <div class="gauge__value" id="gauge-value-TEST">--</div>
-  </div>
-  <div class="gauge__topic">test</div>
+<div class="test__header">
+  <span class="test__dot" id="test-dot"></span>
+  <span class="test__name">TEST</span>
+  <span class="test__last-seen" id="TEST-last-seen">--</span>
+</div>
+<div class="test__chart-wrap">
+  <canvas id="test-chart" width="300" height="140"></canvas>
+</div>
+<div class="test__info">
+  <span class="test__label">Value:</span>
+  <span class="test__value" id="test-value">--</span>
 </div>

@@ -5,14 +5,26 @@ import { join } from "node:path";
 // ── Config ──
 const PORT = Number(process.env.PORT) || 3000;
 
-// ── Kill existing process on port ──
+// ── Kill existing Bun server on port (avoid killing VS Code port-forwarding) ──
 function killPort(port: number): Promise<void> {
   return new Promise((resolve) => {
-    const proc = Bun.spawnSync(["lsof", "-i", `:${port}`, "-t"], { stdout: "pipe" });
+    // Use -Pn to skip port name resolution; filter to only LISTEN state
+    // so we don't kill VS Code's port-forwarding proxy connections
+    const proc = Bun.spawnSync(
+      ["lsof", "-i", `:${port}`, "-sTCP:LISTEN", "-t"],
+      { stdout: "pipe" }
+    );
     const pids = proc.stdout.toString().trim().split("\n").filter(Boolean);
     if (pids.length === 0) return resolve();
     for (const pid of pids) {
-      try { process.kill(Number(pid), "SIGKILL"); } catch {}
+      try {
+        // Only kill if it's a bun/node process (our server), not VS Code proxy
+        const cmdProc = Bun.spawnSync(["ps", "-p", pid, "-o", "comm="], { stdout: "pipe" });
+        const comm = cmdProc.stdout.toString().trim();
+        if (comm === "bun" || comm === "node") {
+          process.kill(Number(pid), "SIGKILL");
+        }
+      } catch {}
     }
     setTimeout(resolve, 500);
   });
@@ -33,6 +45,7 @@ const MQTT_BROKER = process.env.MQTT_BROKER || "tcp://localhost:1883";
 // ── Config Log ──
 console.log(`[config] PORT=${PORT}`);
 console.log(`[config] INFLUX_URL=${INFLUX_URL} ORG=${INFLUX_ORG} BUCKET=${INFLUX_BUCKET}`);
+console.log(`[config] INFLUX_TOKEN=${INFLUX_TOKEN ? '***configured***' : '***MISSING — InfluxDB writes disabled***'}`);
 console.log(`[config] MQTT_BROKER=${MQTT_BROKER}`);
 
 // ── State ──
@@ -41,6 +54,9 @@ let mqttStatus: "ok" | "down" = "down";
 let influxStatus: "ok" | "down" = "down";
 let mqttClient: any = null;
 let pipelineSubscriptions: Map<string, any> = new Map();
+
+// ── WebSocket topic subscriptions ──
+const wsTopicSubs = new Map<WebSocket, Set<string>>();
 
 // ── Helpers ──
 async function listSensors(): Promise<string[]> {
@@ -139,9 +155,38 @@ async function queryInflux(flux: string): Promise<any> {
   }
 }
 
+// ── InfluxDB Delete Measurement ──
+async function deleteInfluxMeasurement(measurement: string): Promise<boolean> {
+  if (!INFLUX_TOKEN) return false;
+  try {
+    const res = await fetch(
+      `${INFLUX_URL}/api/v2/delete?org=${encodeURIComponent(INFLUX_ORG)}&bucket=${encodeURIComponent(INFLUX_BUCKET)}`,
+      {
+        method: "POST",
+        headers: {
+          Authorization: `Token ${INFLUX_TOKEN}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          start: "1970-01-01T00:00:00Z",
+          stop: "2030-01-01T00:00:00Z",
+          predicate: `_measurement="${measurement}"`,
+        }),
+        signal: AbortSignal.timeout(10000),
+      }
+    );
+    return res.ok;
+  } catch {
+    return false;
+  }
+}
+
 // ── InfluxDB Write ──
 async function writeInflux(lineProtocol: string): Promise<boolean> {
-  if (!INFLUX_TOKEN) return false;
+  if (!INFLUX_TOKEN) {
+    console.error("[influx] Write skipped — INFLUX_TOKEN not set. Line:", lineProtocol);
+    return false;
+  }
   try {
     const res = await fetch(
       `${INFLUX_URL}/api/v2/write?org=${encodeURIComponent(INFLUX_ORG)}&bucket=${encodeURIComponent(INFLUX_BUCKET)}`,
@@ -155,8 +200,13 @@ async function writeInflux(lineProtocol: string): Promise<boolean> {
         signal: AbortSignal.timeout(5000),
       }
     );
+    if (!res.ok) {
+      const body = await res.text().catch(() => "");
+      console.error(`[influx] Write failed (${res.status}): ${body}. Line: ${lineProtocol}`);
+    }
     return res.ok;
-  } catch {
+  } catch (err: any) {
+    console.error(`[influx] Write error: ${err.message}. Line: ${lineProtocol}`);
     return false;
   }
 }
@@ -267,7 +317,15 @@ async function startMqttPipeline() {
       const sub = pipelineSubscriptions.get(topic);
       if (!sub) return;
 
+      // Forward raw MQTT message to subscribed WebSocket clients
       const raw = payload.toString();
+      console.log(`[mqtt] Received on ${topic}: ${raw}`);
+      for (const [ws, topics] of wsTopicSubs) {
+        if (topics.has(topic) && ws.readyState === WebSocket.OPEN) {
+          ws.send(JSON.stringify({ type: 'mqtt-message', topic, payload: raw }));
+        }
+      }
+
       let fields: Record<string, number | string> = {};
 
       try {
@@ -300,14 +358,61 @@ async function startMqttPipeline() {
         const tagParts = Object.entries(sub.tags).map(([k, v]) => `${k}=${v}`);
         line += "," + tagParts.join(",");
       }
-      const fieldParts = Object.entries(fields).map(([k, v]) =>
-        typeof v === "number" ? `${k}=${v}` : `${k}="${v}"`
-      );
+      // Build InfluxDB line protocol field parts
+      // Float fields must have a decimal point (e.g. value=5.0) or InfluxDB
+      // stores them as integer, causing type conflicts on later float writes.
+      // If time_offset_field is set, exclude it from InfluxDB fields
+      // and use it to compute a backdated timestamp instead.
+      const timeOffsetField: string | undefined = sub.time_offset_field;
+      const fieldParts = Object.entries(fields).filter(([k]) => k !== timeOffsetField).map(([k, v]) => {
+        if (typeof v === "number") {
+          // Check if the pipeline declares this field as float
+          const fieldType = sub.fields[k];
+          if (fieldType === "float" && Number.isInteger(v)) {
+            return `${k}=${v}.0`;
+          }
+          return `${k}=${v}`;
+        }
+        return `${k}="${v}"`;
+      });
       line += " " + fieldParts.join(",");
 
+      // If time_offset_field is configured, fill data points for every
+      // second from (arrival_time - offset_ms) to arrival_time, all with
+      // the same field values. This ensures no time gaps in the history.
+      if (timeOffsetField && fields[timeOffsetField] !== undefined) {
+        const offsetMs = Number(fields[timeOffsetField]);
+        if (!isNaN(offsetMs) && offsetMs > 0) {
+          const nowMs = Date.now();
+          const startMs = nowMs - offsetMs;
+          // Write one data point per second from start to now (inclusive)
+          const lines: string[] = [];
+          for (let t = startMs; t <= nowMs; t += 1000) {
+            const timestampNs = t * 1_000_000;
+            lines.push(`${line} ${timestampNs}`);
+          }
+          const batch = lines.join("\n");
+          console.log(`[mqtt] Filling ${lines.length} data points from -${offsetMs}ms to now`);
+          const ok = await writeInflux(batch);
+          if (ok) {
+            influxStatus = "ok";
+            console.log(`[mqtt] InfluxDB batch write OK`);
+          } else {
+            influxStatus = "down";
+            console.error(`[mqtt] InfluxDB batch write FAILED`);
+          }
+          return; // already written, skip single-point write below
+        }
+      }
+
+      console.log(`[mqtt] Writing to InfluxDB: ${line}`);
       const ok = await writeInflux(line);
-      if (!ok) {
+      if (ok) {
+        influxStatus = "ok";
+        console.log(`[mqtt] InfluxDB write OK`);
+      } else {
         influxStatus = "down";
+        console.error(`[mqtt] InfluxDB write FAILED`);
       }
     });
 
@@ -361,34 +466,61 @@ function announceSensor(name: string) {
   }, 500));
 }
 
+// ── Per-sensor subdirectory watchers (Linux doesn't support recursive fs.watch) ──
+const sensorWatchers = new Map<string, ReturnType<typeof watch>>();
+
+function watchSensorDir(name: string) {
+  if (sensorWatchers.has(name)) return;
+  const dir = join(SENSORS_DIR, name);
+  try {
+    const watcher = watch(dir, async (event) => {
+      // Any file change in this sensor dir — re-check readiness
+      announceSensor(name);
+    });
+    sensorWatchers.set(name, watcher);
+  } catch {
+    // Directory may not be ready yet
+  }
+}
+
+function unwatchSensorDir(name: string) {
+  const watcher = sensorWatchers.get(name);
+  if (watcher) {
+    watcher.close();
+    sensorWatchers.delete(name);
+  }
+}
+
 function startFileWatcher() {
   try {
+    // Watch sensors/ directory for subdirectory add/remove only
     watch(SENSORS_DIR, { recursive: false }, async (event, filename) => {
       if (!filename) return;
       const fullPath = join(SENSORS_DIR, filename);
       try {
         const s = await stat(fullPath);
         if (s.isDirectory()) {
-          if (event === "rename") {
-            // Debounce announcement until all files are ready
-            announceSensor(filename);
-          }
+          // New sensor directory — start watching it and check readiness
+          watchSensorDir(filename);
+          announceSensor(filename);
         }
       } catch {
-        // Directory was removed — announce immediately
-        if (event === "rename") {
-          if (pendingAnnouncements.has(filename)) {
-            clearTimeout(pendingAnnouncements.get(filename)!);
-            pendingAnnouncements.delete(filename);
-          }
-          broadcast({ type: "sensor-removed", name: filename });
+        // Directory was removed
+        unwatchSensorDir(filename);
+        if (pendingAnnouncements.has(filename)) {
+          clearTimeout(pendingAnnouncements.get(filename)!);
+          pendingAnnouncements.delete(filename);
         }
+        broadcast({ type: "sensor-removed", name: filename });
       }
     });
     console.log("[watcher] Watching sensors/ directory");
   } catch {
     console.log("[watcher] sensors/ directory not found, skipping watcher");
   }
+
+  // Start watchers for any sensors that already exist on boot
+  listSensors().then(names => names.forEach(watchSensorDir));
 
   // Watch pipeline.json for changes
   try {
@@ -493,12 +625,25 @@ const server = Bun.serve({
           await stat(sensorPath);
           await rm(sensorPath, { recursive: true, force: true });
 
-          // Remove from pipeline.json
+          // Remove from pipeline.json and collect measurements to purge
           const pipeline = await readPipeline();
+          const measurementsToPurge = pipeline.subscriptions
+            .filter((s: any) => s.sensor === name)
+            .map((s: any) => s.measurement);
           pipeline.subscriptions = pipeline.subscriptions.filter(
             (s: any) => s.sensor !== name
           );
           await writePipeline(pipeline);
+
+          // Purge InfluxDB data for each measurement
+          for (const measurement of measurementsToPurge) {
+            const ok = await deleteInfluxMeasurement(measurement);
+            if (!ok) {
+              console.error(`[delete] Failed to purge InfluxDB measurement: ${measurement}`);
+            } else {
+              console.log(`[delete] Purged InfluxDB measurement: ${measurement}`);
+            }
+          }
 
           broadcast({ type: "sensor-removed", name });
           return Response.json({ ok: true });
@@ -628,9 +773,20 @@ const server = Bun.serve({
     },
     close(ws) {
       wsClients.delete(ws);
+      wsTopicSubs.delete(ws);
     },
     message(ws, message) {
-      // Client messages not needed for now
+      try {
+        const msg = JSON.parse(message as string);
+        if (msg.type === 'subscribe' && typeof msg.topic === 'string') {
+          if (!wsTopicSubs.has(ws)) wsTopicSubs.set(ws, new Set());
+          wsTopicSubs.get(ws)!.add(msg.topic);
+        } else if (msg.type === 'unsubscribe' && typeof msg.topic === 'string') {
+          wsTopicSubs.get(ws)?.delete(msg.topic);
+        }
+      } catch {
+        // Ignore non-JSON messages
+      }
     },
   },
 });

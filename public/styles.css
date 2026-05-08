@@ -6,11 +6,11 @@
 
 :root {
   --bg: #0a0a0a;
-  --surface: #111111;
-  --border: #2a2a2a;
-  --text: #c8c8c8;
-  --text-dim: #555555;
-  --accent: #4a9eff;
+  --surface: #141414;
+  --border: #1e1e1e;
+  --text: #ffffff;
+  --text-dim: #888888;
+  --accent: #f0a500;
   --danger: #ff4444;
 }
 
@@ -35,8 +35,8 @@ body {
     0deg,
     transparent,
     transparent 2px,
-    rgba(0, 0, 0, 0.08) 2px,
-    rgba(0, 0, 0, 0.08) 4px
+    rgba(0, 0, 0, 0.04) 2px,
+    rgba(0, 0, 0, 0.04) 4px
   );
 }
 
@@ -47,31 +47,29 @@ body {
   align-items: center;
   padding: 1rem 2rem;
   background-color: var(--surface);
-  border-bottom: 2px solid var(--border);
+  border-bottom: 1px solid var(--border);
   position: relative;
   z-index: 2;
 }
 
 .title {
-  font-size: 0.85rem;
+  font-size: 0.9rem;
   letter-spacing: 2px;
   color: var(--accent);
 }
 
-.status {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.status__indicator {
+.status__dot {
+  display: inline-block;
   width: 8px;
   height: 8px;
   background-color: var(--danger);
-  border: 1px solid var(--border);
+  border-radius: 50%;
+  vertical-align: middle;
+  margin-left: 8px;
+  transition: background-color 0.3s ease;
 }
 
-.status__indicator--ok {
+.status__dot--ok {
   background-color: #00cc66;
 }
 
@@ -135,7 +133,8 @@ body {
 .sensor-card {
   position: relative;
   background-color: var(--surface);
-  border: 2px solid var(--border);
+  border: 1px solid #1a1a1a;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4);
   padding: 0;
 }
 
@@ -175,17 +174,19 @@ body {
 
 .modal__box {
   background-color: var(--surface);
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
   padding: 2rem;
   max-width: 400px;
   width: 90%;
 }
 
 .modal__text {
-  font-size: 0.6rem;
+  font-size: 0.65rem;
   line-height: 2;
   color: var(--text);
   margin-bottom: 1.5rem;
+  white-space: pre-line;
 }
 
 .modal__actions {
@@ -198,7 +199,7 @@ body {
   font-family: 'Press Start 2P', monospace;
   font-size: 0.5rem;
   padding: 0.5rem 1rem;
-  border: 2px solid var(--border);
+  border: 1px solid var(--border);
   cursor: pointer;
   background: none;
 }

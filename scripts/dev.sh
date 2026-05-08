@@ -5,6 +5,16 @@ set -euo pipefail
 # Starts InfluxDB + Mosquitto as native processes, then runs the dashboard.
 # Everything on localhost — one command, all services.
 
+# ── Load .env if present ──
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
+if [ -f "$PROJECT_DIR/.env" ]; then
+  set -a
+  source "$PROJECT_DIR/.env"
+  set +a
+  echo "[dev] Loaded .env"
+fi
+
 LOG_DIR="/tmp/pisense"
 mkdir -p "$LOG_DIR"
 
@@ -37,7 +47,22 @@ start_influxdb() {
 
 # ── Setup InfluxDB (first-run only) ──
 setup_influxdb() {
-  if [ -f /root/.influxdbv2/influxd.bolt ]; then
+  # Ask InfluxDB API if onboarding is still needed — don't check the
+  # bolt file, because InfluxDB creates it on startup BEFORE onboarding.
+  # The health endpoint may pass before the setup API is ready, so retry.
+  local setup_status=""
+  for i in $(seq 1 10); do
+    setup_status=$(curl -sf http://localhost:8086/api/v2/setup 2>/dev/null) || true
+    if echo "$setup_status" | grep -q '"allowed"'; then break; fi
+    sleep 1
+  done
+
+  if echo "$setup_status" | grep -q '"allowed"[[:space:]]*:[[:space:]]*false'; then
+    return  # already onboarded
+  fi
+
+  if ! echo "$setup_status" | grep -q '"allowed"[[:space:]]*:[[:space:]]*true'; then
+    echo "[dev] WARNING: Could not reach InfluxDB setup API"
     return
   fi
 
@@ -52,26 +77,27 @@ setup_influxdb() {
       \"org\": \"${INFLUX_ORG:-pisense}\",
       \"bucket\": \"${INFLUX_BUCKET:-sensors}\",
       \"token\": \"${INFLUX_SETUP_TOKEN}\"
-    }" >/dev/null 2>&1 || true
+    }" >/dev/null 2>&1 || {
+      echo "[dev] WARNING: InfluxDB setup call failed (may already be initialized)"
+      return
+    }
 
   echo "[dev] InfluxDB configured"
 }
 
-# ── Start Mosquitto (if not running) ──
+# ── Start Mosquitto ──
 start_mosquitto() {
-  # Ensure Mosquitto binds to all interfaces so host can reach it
+  # Always write the config so Mosquitto binds to all interfaces
   mkdir -p /etc/mosquitto/conf.d
-  if ! grep -q '0.0.0.0' /etc/mosquitto/conf.d/dev.conf 2>/dev/null; then
-    cat > /etc/mosquitto/conf.d/dev.conf << 'CONF'
+  cat > /etc/mosquitto/conf.d/dev.conf << 'CONF'
 listener 1883 0.0.0.0
 allow_anonymous true
 CONF
-  fi
 
-  if bash -c "echo >/dev/tcp/localhost/1883" 2>/dev/null; then
-    echo "[dev] Mosquitto already running"
-    return
-  fi
+  # Stop any existing Mosquitto — it may be running without our 0.0.0.0 config
+  # (e.g. started by systemd at container boot, bound to 127.0.0.1 only)
+  pkill mosquitto 2>/dev/null || true
+  sleep 1
 
   echo "[dev] Starting Mosquitto..."
   mosquitto -c /etc/mosquitto/mosquitto.conf -d 2>/dev/null || \
@@ -79,7 +105,7 @@ CONF
 
   for i in $(seq 1 15); do
     if bash -c "echo >/dev/tcp/localhost/1883" 2>/dev/null; then
-      echo "[dev] Mosquitto ready on localhost:1883"
+      echo "[dev] Mosquitto ready on 0.0.0.0:1883"
       return
     fi
     sleep 1

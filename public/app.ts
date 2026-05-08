@@ -1,10 +1,10 @@
 // ── Cycling Prompts ──
 const prompts = [
-  'Add a temperature gauge on topic sensors/room/temp',
-  'Show humidity as a bar chart, alerts above 70%',
-  'Monitor CPU load with a line graph',
-  'Track pressure in kPa, refresh every 3s',
-  'Create a motion detector, red when active',
+  'Gauge sensor on topic room/temp, min 0 max 50',
+  'History chart on topic server/cpu, range 0 to 100',
+  'Status panel on topic door/entrance, show open or closed',
+  'Gauge on topic tank/level, min 0 max 100, label Water Level',
+  'Line chart on topic garden/moisture, last 1 hour',
 ];
 
 const promptEl = document.getElementById('cycling-prompt') as HTMLElement;
@@ -53,13 +53,15 @@ function updateEmptyState() {
   }
 }
 
-// ── Status Indicators ──
-const statusInflux = document.getElementById('status-influx') as HTMLElement;
-const statusMqtt = document.getElementById('status-mqtt') as HTMLElement;
+// ── Status Indicator ──
+const statusDot = document.getElementById('status-dot') as HTMLElement;
 
 function updateStatus(influxdb: 'ok' | 'down', mqtt: 'ok' | 'down') {
-  statusInflux.className = 'status__indicator' + (influxdb === 'ok' ? ' status__indicator--ok' : '');
-  statusMqtt.className = 'status__indicator' + (mqtt === 'ok' ? ' status__indicator--ok' : '');
+  if (influxdb === 'ok' && mqtt === 'ok') {
+    statusDot.classList.add('status__dot--ok');
+  } else {
+    statusDot.classList.remove('status__dot--ok');
+  }
 }
 
 // ── Remove Confirmation Modal ──
@@ -72,7 +74,7 @@ let pendingRemoveName: string | null = null;
 
 function showRemoveModal(name: string) {
   pendingRemoveName = name;
-  modalText.textContent = `Remove sensor "${name}"?`;
+  modalText.textContent = `Remove sensor "${name}"?\nAll historical data will also be permanently deleted.`;
   modal.classList.add('modal--visible');
 }
 
