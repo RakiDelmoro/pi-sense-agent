@@ -4,41 +4,58 @@ A dark, retro-pixel dashboard for IoT sensors — powered by [Pi](https://pi.dev
 
 ## Prerequisites
 
-- [Bun](https://bun.sh/) (auto-installed by devcontainer)
-- [Pi](https://pi.dev/) (installed by `bun run setup`)
+- [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
+
+That's it. Everything else runs in containers.
 
 ## Getting Started
 
-```bash
-bun run setup   # Install InfluxDB, Mosquitto, Pi, dependencies, and create .env
-```
+1. **Create your .env file**
+   ```bash
+   cp .env.example .env
+   ```
 
-> **💡 Tip:** Edit `.env` now to set your InfluxDB credentials, org, and bucket. Onboarding runs once on first `bun run dev` — if you change credentials afterwards, the dashboard will fail to connect. To reset InfluxDB and start fresh: `rm -rf /var/lib/influxdb2/influxd.bolt /var/lib/influxdb2/engine`
+   Edit `.env` and add your AI API key for Pi:
+   ```
+   ANTHROPIC_API_KEY=sk-ant-...
+   ```
 
-```bash
-bun run dev     # Start everything
-```
+2. **Start the dashboard**
+   ```bash
+   docker compose up -d
+   ```
 
-Open http://localhost:3000 in your browser. Press **Ctrl+C** to stop — the script cleans up all services on exit.
+   Open http://localhost:3000
+
+3. **Chat with Pi** (to create sensors)
+   ```bash
+   docker compose run --rm pi
+   ```
+
+4. **Validate a sensor**
+   ```bash
+   docker compose run --rm pi bun run scripts/validate-sensor.ts <sensor-name>
+   ```
+
+5. **Stop everything** (data preserved in volumes)
+   ```bash
+   docker compose down
+   ```
 
 ## Adding Sensors
 
 Launch Pi:
 
 ```bash
-pi
+docker compose run --rm pi
 ```
 
-> **First time?** Pi needs an AI model configured before use. You can either:
-> - Set an API key: `export ANTHROPIC_API_KEY=sk-ant-...` (or `OPENAI_API_KEY`, etc.), then run `pi`
-> - Or use a subscription: run `pi`, then type `/login` and select your provider
->
-> After logging in, pick a model with `/model` (or Ctrl+L). See [Pi providers & models](https://pi.dev/models) for all options.
+> **First time?** Pi needs an AI model configured. Set your API key in `.env` (e.g. `ANTHROPIC_API_KEY=sk-ant-...`).
 
-First, earn the sensor builder skill — paste this:
+First, learn the sensor builder skill — paste this:
 
 ```
-Read DASHBOARD_OWNER.md and save it as a Pi skill at ~/.pi/skills/dashboard-owner/SKILL.md
+Read DASHBOARD_OWNER.md and save it as a Pi skill at .pi/skills/dashboard-owner/SKILL.md
 ```
 
 Now describe any sensor and Pi builds it:
@@ -55,11 +72,12 @@ All config lives in `.env`. Copy `.env.example` and fill in your values:
 | Variable | Description |
 |----------|-------------|
 | `PORT` | Dashboard server port (default: `3000`) |
-| `INFLUX_URL` | InfluxDB connection URL |
+| `INFLUX_URL` | InfluxDB connection URL (Docker: `http://influxdb:8086`) |
 | `INFLUX_TOKEN` | InfluxDB auth token (**required**) |
 | `INFLUX_ORG` | InfluxDB organization (default: `pisense`) |
 | `INFLUX_BUCKET` | InfluxDB bucket (default: `sensors`) |
 | `INFLUX_ADMIN_USERNAME` | InfluxDB initial admin username (first-run setup) |
 | `INFLUX_ADMIN_PASSWORD` | InfluxDB initial admin password (**required for setup**) |
-| `INFLUX_SETUP_TOKEN` | InfluxDB setup token (**required for setup**) |
-| `MQTT_BROKER` | MQTT broker URL (default: `tcp://localhost:1883`) |
+| `MQTT_BROKER` | MQTT broker URL (Docker: `mqtt://mosquitto:1883`) |
+| `ANTHROPIC_API_KEY` | Anthropic API key for Pi |
+| `OPENAI_API_KEY` | OpenAI API key for Pi |
