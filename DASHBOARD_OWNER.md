@@ -5,12 +5,7 @@ description: Build sensors for the PiSense Dashboard — create sensor.html, sen
 
 # Dashboard Owner
 
-> This file is also registered as a Pi skill at `.pi/skills/dashboard-owner/SKILL.md`.
-> Pi loads it automatically when you ask it to create or modify sensors.
-
-Build sensors — visual components wired to MQTT data through InfluxDB.
-
-## File Structure
+## Structure
 
 Every sensor lives in `sensors/<name>/` with exactly three files:
 
@@ -20,32 +15,17 @@ Every sensor lives in `sensors/<name>/` with exactly three files:
 
 **Naming:** lowercase, hyphenated, no spaces (e.g. `room-temp`, `cpu-load`)
 
-## Rules
-
 ### CSS
 
 - **Scope all selectors** with `.sensor-card--<name>` — CSS is injected globally, unscoped rules leak to other sensors
 - Match the dashboard aesthetic: dark theme, `'Press Start 2P', monospace` font, no border-radius, no gradients, small font sizes (0.5rem–0.8rem)
-- Use CSS custom properties: `--bg (#0a0a0a)`, `--surface (#141414)`, `--border (#1e1e1e)`, `--text (#ffffff)`, `--text-dim (#888888)`, `--accent (#f0a500)`, `--danger (#ff4444)`
+- Use CSS custom properties: `--bg (#0a0a0a)`, `--surface (#141414)`, `--border (#1e1e1e)`, `--text (#ffffff)`, `--text-dim (#888888)`, `--accent (#00e5ff)`, `--danger (#ff4444)`
 
 ### TypeScript
 
 - Clean up all polls/intervals/timeouts in `pisense.onUnmount()` — every `pisense.poll()` must have a matching `pisense.stopPoll()`
 - Use `pisense` API for data — no hardcoded or mock values
 - Handle missing data: check for `undefined`/`null`, show `--` as fallback, no `console.log` in production
-
-### Last Seen Indicator (mandatory)
-
-Every sensor shows how long since the last data was published. Cards are always fully visible — no dimming:
-
-- **CSS:** no `opacity` dimming on the card — always fully visible. Add `.<name>__last-seen` style (margin-left: auto, font-size 0.4rem, color `var(--text-dim)`, letter-spacing 1px)
-- **HTML:** include a `<span class="<name>__last-seen" id="<name>-last-seen">--</span>` in the header (after the name). Also include a `<span class="<name>__dot"></span>` status dot (6px, `var(--text-dim)` → `var(--accent)` on live)
-- **TS:** track `lastDataTime: Date | null = null` and `lastDataKey: string | null = null`; on each successful poll, compare the data key (`value|time`) to detect genuinely new data; only then set `lastDataTime = new Date()` (client clock, not server). Compute relative time and update `lastSeenEl`. Show `--` when no data yet. Use a 1-second `setInterval` to tick the display. Clean up the interval in `onUnmount`. Keep `--live` class toggle for the dot color change only (not opacity)
-
-Relative-time format:
-- `< 60s` → `Xs ago`
-- `≥ 60s, < 3600s` → `Xm ago` (rounded down)
-- `≥ 3600s` → `Xh ago` (rounded down)
 
 ### General
 
@@ -80,13 +60,14 @@ Injected as `window.pisense` before your script runs.
 
 ## Pipeline Registration
 
+> The MQTT broker is configured globally via the `MQTT_BROKER` environment variable (same pattern as `INFLUX_URL`). Do **not** include a `mqtt_broker` field in pipeline entries.
+
 Add a subscription to `pipeline.json` for MQTT→InfluxDB data flow:
 
 ```json
 {
   "sensor": "room-temp",
   "mqtt_topic": "sensors/room/temp",
-  "mqtt_broker": "tcp://localhost:1883",
   "measurement": "temperature",
   "tags": { "location": "room1" },
   "fields": { "value": "float" },
@@ -98,17 +79,29 @@ Add a subscription to `pipeline.json` for MQTT→InfluxDB data flow:
 |-------|----------|-------------|
 | `sensor` | ✅ | Must match `sensors/` folder name |
 | `mqtt_topic` | ✅ | MQTT topic to subscribe to |
-| `mqtt_broker` | ❌ | Broker address (default: `tcp://localhost:1883`) |
 | `measurement` | ✅ | InfluxDB measurement name |
 | `tags` | ❌ | Tags for each data point (key-value) |
 | `fields` | ✅ | Field names and types (`float`, `int`, `string`) |
 | `data_format` | ✅ | `json` (`{"value": 22.5}`), `value` (plain `22.5`), or `csv` (positional) |
-| `time_offset_field` | ❌ | Field name (in the JSON payload) whose value (in ms) is subtracted from arrival time to compute the actual measurement timestamp. Data is backdated in InfluxDB so the history chart reflects when the measurement was truly taken, not when it arrived. |
 
-## Reference Example
+### Self-Contained Sensors
 
-See `sensors/TEST/` for a working gauge sensor with all three files + pipeline entry. It demonstrates the last-seen indicator pattern.
+> **⚠️ Never modify files that require `docker compose build`.** Only `sensors/` and `pipeline.json` are mounted as volumes — changes there are live. All other files (`server.ts`, `public/`, `package.json`, `bun.lock`, `Dockerfile`, `docker-compose.yml`, `mosquitto.conf`) are baked into the image. Editing them requires a rebuild to take effect.
 
+The server stores all declared fields at arrival time with no behavioral logic. Any sensor-specific data transformation is handled in `sensor.ts`:
+
+- **Backdated timestamps** — If the MQTT payload includes an offset field (e.g.
+  `time_ms`), declare it as a regular field in `pipeline.json`:
+  ```json
+  "fields": { "value": "float", "time_ms": "int" }
+  ```
+  Then in `sensor.ts`, fetch **both** fields via `pisense.history()`:
+  ```ts
+  const values = await pisense.history('test', 'value', '-1h');
+  const offsets = await pisense.history('test', 'time_ms', '-1h');
+  // Join by shared _time, compute actualTime = storedTime - offsetMs
+  ```
+  Use `actualTime` for chart labels and tooltip display.
 ## Validation (mandatory)
 
 After creating a sensor, run:
@@ -117,6 +110,6 @@ After creating a sensor, run:
 bun run validate <sensor-name>
 ```
 
-This checks: TypeScript compiles, CSS parses, HTML is a fragment, pipeline entry exists, all 3 files present, CSS is scoped, live transition implemented.
+This checks: TypeScript compiles, CSS parses, HTML is a fragment, pipeline entry exists, all 3 files present, CSS is scoped.
 
 Loop until it passes — only then is the sensor complete.
