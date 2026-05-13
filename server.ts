@@ -5,30 +5,6 @@ import { join } from "node:path";
 // ── Config ──
 const PORT = Number(process.env.PORT) || 3000;
 
-// ── Kill existing Bun server on port (avoid killing VS Code port-forwarding) ──
-function killPort(port: number): Promise<void> {
-  return new Promise((resolve) => {
-    // Use -Pn to skip port name resolution; filter to only LISTEN state
-    // so we don't kill VS Code's port-forwarding proxy connections
-    const proc = Bun.spawnSync(
-      ["lsof", "-i", `:${port}`, "-sTCP:LISTEN", "-t"],
-      { stdout: "pipe" }
-    );
-    const pids = proc.stdout.toString().trim().split("\n").filter(Boolean);
-    if (pids.length === 0) return resolve();
-    for (const pid of pids) {
-      try {
-        // Only kill if it's a bun/node process (our server), not VS Code proxy
-        const cmdProc = Bun.spawnSync(["ps", "-p", pid, "-o", "comm="], { stdout: "pipe" });
-        const comm = cmdProc.stdout.toString().trim();
-        if (comm === "bun" || comm === "node") {
-          process.kill(Number(pid), "SIGKILL");
-        }
-      } catch {}
-    }
-    setTimeout(resolve, 500);
-  });
-}
 const SENSORS_DIR = join(import.meta.dir, "sensors");
 const PUBLIC_DIR = join(import.meta.dir, "public");
 const PIPELINE_PATH = join(import.meta.dir, "pipeline.json");
@@ -134,7 +110,7 @@ async function queryInflux(flux: string): Promise<any> {
         headers: {
           Authorization: `Token ${INFLUX_TOKEN}`,
           "Content-Type": "application/vnd.flux",
-          Accept: "application/json",
+          Accept: "application/csv",
         },
         body: flux,
         signal: AbortSignal.timeout(10000),
@@ -224,7 +200,7 @@ function buildLatestQuery(
       filter += `\n  |> filter(fn: (r) => r.${key} == "${val}")`;
     }
   }
-  return `from(bucket: "${INFLUX_BUCKET}")\n  |> range(start: -1h)\n  ${filter}\n  |> last()`;
+  return `from(bucket: "${INFLUX_BUCKET}")\n  |> range(start: -30d)\n  ${filter}\n  |> last()`;
 }
 
 function buildHistoryQuery(
@@ -273,9 +249,10 @@ function parseInfluxCsv(csv: string): any[] {
     const val = cols[valueIdx];
     const time = timeIdx !== -1 ? cols[timeIdx] : undefined;
     // Try to parse as number
-    const numVal = Number(val);
+    const trimmed = val?.trim();
+    const numVal = trimmed !== "" ? Number(trimmed) : NaN;
     results.push({
-      value: isNaN(numVal) ? val : numVal,
+      value: isNaN(numVal) ? (trimmed !== "" ? trimmed : null) : numVal,
       time,
       field: fieldIdx !== -1 ? cols[fieldIdx] : undefined,
     });
@@ -296,8 +273,7 @@ async function startMqttPipeline() {
       return;
     }
 
-    // Use broker from first subscription or default
-    const broker = subs[0]?.mqtt_broker || MQTT_BROKER;
+    const broker = MQTT_BROKER;
 
     mqttClient = mqtt.connect(broker);
     mqttClient.on("connect", () => {
@@ -330,7 +306,20 @@ async function startMqttPipeline() {
 
       try {
         if (sub.data_format === "json") {
-          const parsed = JSON.parse(raw);
+          let parsed: any;
+          try {
+            parsed = JSON.parse(raw);
+          } catch {
+            // Lenient fallback: handle unquoted keys like {value: 100}
+            // by quoting keys before re-parsing
+            try {
+              const fixed = raw.replace(/([{,]\s*)([A-Za-z_]\w*)\s*:/g, '$1"$2":');
+              parsed = JSON.parse(fixed);
+              console.log(`[mqtt] Lenient JSON parse succeeded`);
+            } catch (e2) {
+              throw new SyntaxError(`Invalid JSON: ${raw}`);
+            }
+          }
           for (const [key, type] of Object.entries(sub.fields)) {
             const val = parsed[key];
             if (val !== undefined) fields[key] = type === "float" || type === "int" ? Number(val) : String(val);
@@ -361,12 +350,8 @@ async function startMqttPipeline() {
       // Build InfluxDB line protocol field parts
       // Float fields must have a decimal point (e.g. value=5.0) or InfluxDB
       // stores them as integer, causing type conflicts on later float writes.
-      // If time_offset_field is set, exclude it from InfluxDB fields
-      // and use it to compute a backdated timestamp instead.
-      const timeOffsetField: string | undefined = sub.time_offset_field;
-      const fieldParts = Object.entries(fields).filter(([k]) => k !== timeOffsetField).map(([k, v]) => {
+      const fieldParts = Object.entries(fields).map(([k, v]) => {
         if (typeof v === "number") {
-          // Check if the pipeline declares this field as float
           const fieldType = sub.fields[k];
           if (fieldType === "float" && Number.isInteger(v)) {
             return `${k}=${v}.0`;
@@ -376,34 +361,6 @@ async function startMqttPipeline() {
         return `${k}="${v}"`;
       });
       line += " " + fieldParts.join(",");
-
-      // If time_offset_field is configured, fill data points for every
-      // second from (arrival_time - offset_ms) to arrival_time, all with
-      // the same field values. This ensures no time gaps in the history.
-      if (timeOffsetField && fields[timeOffsetField] !== undefined) {
-        const offsetMs = Number(fields[timeOffsetField]);
-        if (!isNaN(offsetMs) && offsetMs > 0) {
-          const nowMs = Date.now();
-          const startMs = nowMs - offsetMs;
-          // Write one data point per second from start to now (inclusive)
-          const lines: string[] = [];
-          for (let t = startMs; t <= nowMs; t += 1000) {
-            const timestampNs = t * 1_000_000;
-            lines.push(`${line} ${timestampNs}`);
-          }
-          const batch = lines.join("\n");
-          console.log(`[mqtt] Filling ${lines.length} data points from -${offsetMs}ms to now`);
-          const ok = await writeInflux(batch);
-          if (ok) {
-            influxStatus = "ok";
-            console.log(`[mqtt] InfluxDB batch write OK`);
-          } else {
-            influxStatus = "down";
-            console.error(`[mqtt] InfluxDB batch write FAILED`);
-          }
-          return; // already written, skip single-point write below
-        }
-      }
 
       console.log(`[mqtt] Writing to InfluxDB: ${line}`);
       const ok = await writeInflux(line);
@@ -559,7 +516,6 @@ async function reloadPipelineSubscriptions() {
 setInterval(updateStatus, 30000);
 
 // ── Server ──
-await killPort(PORT);
 const server = Bun.serve({
   port: PORT,
   async fetch(req) {
@@ -591,7 +547,6 @@ const server = Bun.serve({
           return new Response("Not Found", { status: 404 });
         }
         if (ext === "ts") {
-          const source = await bunFile.text();
           try {
             const result = await Bun.build({
               entrypoints: [filePath],

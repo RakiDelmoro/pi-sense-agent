@@ -54,13 +54,19 @@ function updateEmptyState() {
 }
 
 // ── Status Indicator ──
-const statusDot = document.getElementById('status-dot') as HTMLElement;
+const statusInflux = document.getElementById('status-influxdb') as HTMLElement;
+const statusMqtt = document.getElementById('status-mqtt') as HTMLElement;
 
 function updateStatus(influxdb: 'ok' | 'down', mqtt: 'ok' | 'down') {
-  if (influxdb === 'ok' && mqtt === 'ok') {
-    statusDot.classList.add('status__dot--ok');
+  if (influxdb === 'ok') {
+    statusInflux.classList.add('status-dot--ok');
   } else {
-    statusDot.classList.remove('status__dot--ok');
+    statusInflux.classList.remove('status-dot--ok');
+  }
+  if (mqtt === 'ok') {
+    statusMqtt.classList.add('status-dot--ok');
+  } else {
+    statusMqtt.classList.remove('status-dot--ok');
   }
 }
 
@@ -99,51 +105,112 @@ modalConfirm.addEventListener('click', () => {
 });
 
 // ── Sensor Loading ──
-const loadedSensors = new Map<string, { container: HTMLElement; style: HTMLElement }>();
+const loadingSensors = new Set<string>();
+const loadedSensors = new Map<string, {
+  container: HTMLElement;
+  style: HTMLElement;
+  listenerCleanups: (() => void)[];
+  timerIds: number[];
+}>();
+const sensorPolls = new Map<string, number[]>();
 
 async function loadSensor(name: string) {
-  const [htmlRes, cssRes, tsRes] = await Promise.all([
-    fetch(`/api/sensors/${name}/sensor.html`),
-    fetch(`/api/sensors/${name}/sensor.css`),
-    fetch(`/api/sensors/${name}/sensor.ts`),
-  ]);
+  // Guard: don't load the same sensor twice (even during concurrent calls)
+  if (loadedSensors.has(name) || loadingSensors.has(name)) return;
+  loadingSensors.add(name);
 
-  if (!htmlRes.ok || !cssRes.ok || !tsRes.ok) {
-    console.error(`Failed to load sensor: ${name}`);
-    return;
+  let container: HTMLElement;
+  let style: HTMLElement;
+  const listenerCleanups: (() => void)[] = [];
+  const timerIds: number[] = [];
+
+  try {
+    const [htmlRes, cssRes, tsRes] = await Promise.all([
+      fetch(`/api/sensors/${name}/sensor.html`),
+      fetch(`/api/sensors/${name}/sensor.css`),
+      fetch(`/api/sensors/${name}/sensor.ts`),
+    ]);
+
+    if (!htmlRes.ok || !cssRes.ok || !tsRes.ok) {
+      console.error(`Failed to load sensor: ${name}`);
+      loadingSensors.delete(name);
+      return;
+    }
+
+    const html = await htmlRes.text();
+    const css = await cssRes.text();
+    const ts = await tsRes.text();
+
+    // Container
+    container = document.createElement('div');
+    container.className = `sensor-card sensor-card--${name}`;
+    container.innerHTML = html;
+
+    // Remove button
+    const removeBtn = document.createElement('button');
+    removeBtn.className = 'sensor-card__remove';
+    removeBtn.textContent = '✕';
+    removeBtn.addEventListener('click', () => showRemoveModal(name));
+    container.appendChild(removeBtn);
+
+    // Scoped CSS
+    style = document.createElement('style');
+    style.textContent = css;
+    document.head.appendChild(style);
+
+    // Mount container BEFORE executing script (so getElementById works)
+    sensorGrid.appendChild(container);
+
+    // Register in loadedSensors BEFORE executing (so onMount/onUnmount see it)
+    loadedSensors.set(name, { container, style, listenerCleanups, timerIds });
+
+    // ── Execute sensor script in isolated scope ──
+    // Uses string concatenation (NOT template interpolation) because
+    // sensor JS may contain backtick template literals.
+    const wrapperPreamble =
+      'var __psid = arguments[0];\n' +
+      'window.__pisenseCurrentSensor__ = __psid;\n' +
+      'var _origAE = window.addEventListener.bind(window);\n' +
+      'var _origSI = window.setInterval.bind(window);\n' +
+      'var _origST = window.setTimeout.bind(window);\n' +
+      'window.addEventListener = function(type, fn, opts) {\n' +
+      '  window.pisense.trackListener(__psid, type, fn, opts);\n' +
+      '  _origAE(type, fn, opts);\n' +
+      '};\n' +
+      'window.setInterval = function(fn, ms) {\n' +
+      '  var id = _origSI(fn, ms);\n' +
+      '  window.pisense.trackTimer(__psid, id);\n' +
+      '  return id;\n' +
+      '};\n' +
+      'window.setTimeout = function(fn, ms) {\n' +
+      '  var id = _origST(fn, ms);\n' +
+      '  window.pisense.trackTimer(__psid, id);\n' +
+      '  return id;\n' +
+      '};\n' +
+      'try {\n';
+
+    const wrapperPostamble =
+      '} finally {\n' +
+      '  delete window.__pisenseCurrentSensor__;\n' +
+      '  window.addEventListener = _origAE;\n' +
+      '  window.setInterval = _origSI;\n' +
+      '  window.setTimeout = _origST;\n' +
+      '}\n';
+
+    const fullCode = wrapperPreamble + ts + wrapperPostamble;
+    const sensorFn = new Function(fullCode);
+    sensorFn(name);
+
+  } catch (err) {
+    // Sensor script threw — clean up partial state
+    console.error(`[sensor] Error loading ${name}:`, err);
+    if (container) container.remove();
+    if (style) style.remove();
+    loadedSensors.delete(name);
+  } finally {
+    loadingSensors.delete(name);
+    updateEmptyState();
   }
-
-  const html = await htmlRes.text();
-  const css = await cssRes.text();
-  const ts = await tsRes.text();
-
-  // Container
-  const container = document.createElement('div');
-  container.className = `sensor-card sensor-card--${name}`;
-  container.innerHTML = html;
-
-  // Remove button
-  const removeBtn = document.createElement('button');
-  removeBtn.className = 'sensor-card__remove';
-  removeBtn.textContent = '✕';
-  removeBtn.addEventListener('click', () => showRemoveModal(name));
-  container.appendChild(removeBtn);
-
-  // Scoped CSS
-  const style = document.createElement('style');
-  style.textContent = css;
-  document.head.appendChild(style);
-
-  // Mount
-  sensorGrid.appendChild(container);
-
-  // Execute sensor TS
-  const script = document.createElement('script');
-  script.textContent = ts;
-  document.body.appendChild(script);
-
-  loadedSensors.set(name, { container, style });
-  updateEmptyState();
 }
 
 function unmountSensor(name: string) {
@@ -156,7 +223,28 @@ function unmountSensor(name: string) {
     callbacks.forEach(fn => fn());
     unmountCallbacks.delete(name);
   }
+  mountCallbacks.delete(name);
 
+  // Stop all pisense.poll() intervals
+  const polls = sensorPolls.get(name);
+  if (polls) {
+    polls.forEach(id => {
+      const handle = activePolls.get(id);
+      if (handle) { clearInterval(handle); activePolls.delete(id); }
+    });
+    sensorPolls.delete(name);
+  }
+
+  // Remove all tracked window event listeners
+  entry.listenerCleanups.forEach(fn => fn());
+
+  // Clear all tracked timers (setInterval / setTimeout)
+  entry.timerIds.forEach(id => {
+    clearInterval(id);
+    clearTimeout(id);
+  });
+
+  // Remove DOM elements
   entry.container.remove();
   entry.style.remove();
   loadedSensors.delete(name);
@@ -187,7 +275,14 @@ const activePolls = new Map<number, ReturnType<typeof setInterval>>();
 
   poll: (intervalMs: number, callback: () => void): number => {
     const id = ++pollCounter;
-    activePolls.set(id, setInterval(callback, intervalMs));
+    const handle = setInterval(callback, intervalMs);
+    activePolls.set(id, handle);
+    // Associate with the current sensor
+    const name = (window as any).__pisenseCurrentSensor__;
+    if (name) {
+      if (!sensorPolls.has(name)) sensorPolls.set(name, []);
+      sensorPolls.get(name)!.push(id);
+    }
     return id;
   },
 
@@ -199,21 +294,38 @@ const activePolls = new Map<number, ReturnType<typeof setInterval>>();
     }
   },
 
+  // ── Internal: track window event listeners for automatic cleanup ──
+  trackListener: (sensorName: string, type: string, listener: EventListenerOrEventListenerObject, opts: any): void => {
+    const entry = loadedSensors.get(sensorName);
+    if (entry) {
+      entry.listenerCleanups.push(() => {
+        window.removeEventListener(type, listener, opts);
+      });
+    }
+  },
+
+  // ── Internal: track setInterval/setTimeout IDs for automatic cleanup ──
+  trackTimer: (sensorName: string, id: number): void => {
+    const entry = loadedSensors.get(sensorName);
+    if (entry) {
+      entry.timerIds.push(id);
+    }
+  },
+
   onMount: (callback: () => void): void => {
-    // Associate with the most recently loaded sensor
-    const lastName = [...loadedSensors.keys()].pop();
-    if (lastName) {
-      if (!mountCallbacks.has(lastName)) mountCallbacks.set(lastName, []);
-      mountCallbacks.get(lastName)!.push(callback);
+    const name = (window as any).__pisenseCurrentSensor__;
+    if (name) {
+      if (!mountCallbacks.has(name)) mountCallbacks.set(name, []);
+      mountCallbacks.get(name)!.push(callback);
     }
     callback();
   },
 
   onUnmount: (callback: () => void): void => {
-    const lastName = [...loadedSensors.keys()].pop();
-    if (lastName) {
-      if (!unmountCallbacks.has(lastName)) unmountCallbacks.set(lastName, []);
-      unmountCallbacks.get(lastName)!.push(callback);
+    const name = (window as any).__pisenseCurrentSensor__;
+    if (name) {
+      if (!unmountCallbacks.has(name)) unmountCallbacks.set(name, []);
+      unmountCallbacks.get(name)!.push(callback);
     }
   },
 };
