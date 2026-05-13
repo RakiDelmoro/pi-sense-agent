@@ -1,6 +1,5 @@
 node_modules/
-screenshots/
-.pi
-public/*.js
+.pi/
 .env
-PRODUCTION.md
+public/app.js
+sensors/
