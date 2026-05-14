@@ -6,6 +6,14 @@
 
 ---
 
+## What is PiSense?
+
+PiSense is a self-hosted IoT dashboard that lives entirely on your local network. No cloud. No accounts. No internet needed. Just describe what you want to sense — "gauge on topic room/temp, min 0 max 50" — and Pi, the built-in AI agent, builds the sensor card, writes the code, wires the MQTT pipeline, and puts it on your dashboard. All in seconds.
+
+Your data never leaves your network. InfluxDB stores it. Mosquitto routes it. The dashboard renders it. Everything runs in Docker containers you control.
+
+---
+
 ## Prerequisites
 
 - [Docker](https://docs.docker.com/get-docker/) and [Docker Compose](https://docs.docker.com/compose/install/)
