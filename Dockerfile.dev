@@ -1,0 +1,22 @@
+FROM oven/bun:1
+
+# Node.js + debug tools (single apt-get layer)
+RUN apt-get update && \
+    apt-get install -y curl git mosquitto-clients jq && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+# Pi coding agent
+RUN bun add -g @earendil-works/pi-coding-agent
+
+# InfluxDB CLI
+RUN curl -fsSL https://dl.influxdata.com/influxdb/releases/influxdb2-client-2.7.5-linux-amd64.tar.gz | \
+    tar xz && mv influx /usr/local/bin/ && rm -rf influxdb2-client-*
+
+WORKDIR /app
+COPY DASHBOARD_OWNER.md ./DASHBOARD_OWNER.md
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+
+ENTRYPOINT ["/bin/bash"]

@@ -1,0 +1,9 @@
+node_modules
+.devcontainer
+.pi
+screenshots
+.env
+*.md
+!DASHBOARD_OWNER.md
+public/
+server.ts

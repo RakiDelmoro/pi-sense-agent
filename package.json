@@ -2,9 +2,10 @@
   "name": "pi-sense-agent",
   "version": "1.0.0",
   "scripts": {
-    "setup": "bash scripts/setup.sh",
-    "dev": "bash scripts/dev.sh",
-    "validate": "bun run scripts/validate-sensor.ts"
+    "dev": "docker compose up --build",
+    "dev:down": "docker compose down",
+    "dev:logs": "docker compose logs -f dashboard",
+    "pi": "docker compose run --rm pi"
   },
   "dependencies": {
     "mqtt": "^5.15.1"

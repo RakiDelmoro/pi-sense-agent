@@ -1,0 +1,31 @@
+# FROM oven/bun:1
+# RUN npm install -g @mariozechner/pi-coding-agent 2>/dev/null || \
+#     npm install -g @judepayne/picode 2>/dev/null || \
+#     npm install -g awto-pi-lot || \
+#     echo "WARNING: Pi installation failed"
+# WORKDIR /app
+# COPY DASHBOARD_OWNER.md ./DASHBOARD_OWNER.md
+# COPY scripts ./scripts
+# COPY package.json bun.lock ./
+# RUN bun install --frozen-lockfile --production
+# CMD ["pi"]
+
+FROM oven/bun:1
+
+# Node.js for pi install npm:... commands
+RUN apt-get update && \
+    apt-get install -y curl && \
+    curl -fsSL https://deb.nodesource.com/setup_22.x | bash - && \
+    apt-get install -y nodejs && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN bun add -g @earendil-works/pi-coding-agent
+
+WORKDIR /app
+COPY DASHBOARD_OWNER.md ./DASHBOARD_OWNER.md
+COPY scripts ./scripts
+COPY package.json bun.lock ./
+RUN bun install --frozen-lockfile --production
+
+ENTRYPOINT []
+CMD ["pi"]

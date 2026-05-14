@@ -1,0 +1,132 @@
+services:
+  influxdb:
+    image: influxdb:2.7
+    container_name: pisense-influxdb
+    restart: unless-stopped
+    volumes:
+      - influxdb-data:/var/lib/influxdb2
+      - influxdb-config:/etc/influxdb2
+    environment:
+      DOCKER_INFLUXDB_INIT_MODE: setup
+      DOCKER_INFLUXDB_INIT_USERNAME: ${INFLUX_ADMIN_USERNAME}
+      DOCKER_INFLUXDB_INIT_PASSWORD: ${INFLUX_ADMIN_PASSWORD}
+      DOCKER_INFLUXDB_INIT_ORG: ${INFLUX_ORG}
+      DOCKER_INFLUXDB_INIT_BUCKET: ${INFLUX_BUCKET}
+      DOCKER_INFLUXDB_INIT_ADMIN_TOKEN: ${INFLUX_TOKEN}
+    healthcheck:
+      test: ["CMD", "influx", "ping"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - pisense
+
+  mosquitto:
+    image: eclipse-mosquitto:2.0
+    container_name: pisense-mosquitto
+    restart: unless-stopped
+    volumes:
+      - ./mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+    ports:
+      - "1883:1883"
+    healthcheck:
+      test: ["CMD", "mosquitto_sub", "-h", "localhost", "-t", "$$SYS/broker/uptime", "-C", "1", "-W", "3"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 5s
+    networks:
+      - pisense
+
+  dashboard:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: pisense-dashboard
+    restart: unless-stopped
+    volumes:
+      - ./sensors:/app/sensors
+      - ./pipeline.json:/app/pipeline.json
+      - ./store.json:/app/store.json
+      - ./alerts.json:/app/alerts.json
+      - ./alert-history.json:/app/alert-history.json
+      - ./uploads:/app/uploads
+    environment:
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
+      - INFLUX_ORG=${INFLUX_ORG}
+      - INFLUX_BUCKET=${INFLUX_BUCKET}
+      - MQTT_BROKER=mqtt://mosquitto:1883
+      - PORT=${PORT:-3000}
+    ports:
+      - "${PORT:-3000}:${PORT:-3000}"
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+    networks:
+      - pisense
+
+  pi:
+    build:
+      context: .
+      dockerfile: Dockerfile.pi
+    container_name: pisense-pi
+    volumes:
+      - ./sensors:/app/sensors
+      - ./pipeline.json:/app/pipeline.json
+      - pi-skills:/root/.pi
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    stdin_open: true
+    tty: true
+    profiles:
+      - tools
+    networks:
+      - pisense
+  
+  dev:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    container_name: pisense-dev
+    volumes:
+      - .:/workspace
+      - ./sensors:/app/sensors
+      - ./pipeline.json:/app/pipeline.json
+      - ./scripts:/app/scripts
+      - pi-skills:/root/.pi
+    environment:
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - INFLUX_URL=http://influxdb:8086
+      - INFLUX_TOKEN=${INFLUX_TOKEN}
+      - INFLUX_ORG=${INFLUX_ORG}
+      - INFLUX_BUCKET=${INFLUX_BUCKET}
+      - MQTT_BROKER=mqtt://mosquitto:1883
+      - DASHBOARD_URL=http://dashboard:3000
+    stdin_open: true
+    tty: true
+    depends_on:
+      influxdb:
+        condition: service_healthy
+      mosquitto:
+        condition: service_healthy
+      dashboard:
+        condition: service_started
+    profiles:
+      - tools
+    networks:
+      - pisense
+
+volumes:
+  influxdb-data:
+  influxdb-config:
+  pi-skills:
+
+networks:
+  pisense:
+    driver: bridge

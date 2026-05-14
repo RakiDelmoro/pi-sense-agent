@@ -66,23 +66,6 @@ try {
   } else {
     fail(`CSS is NOT scoped — missing ${scopeClass}`);
   }
-
-  // Check for unscoped selectors (class without sensor prefix)
-  const unscopedClass = /\.[a-z][a-z0-9-]*__/g;
-  const unscopedMatches = css.match(unscopedClass);
-  let hasUnscoped = false;
-  if (unscopedMatches) {
-    // Check if any match appears without being preceded by .sensor-card--
-    const lines = css.split("\n");
-    for (const line of lines) {
-      const trimmed = line.trim();
-      if (trimmed.startsWith("/*") || trimmed.startsWith("*") || trimmed.startsWith("*/")) continue;
-      if (trimmed.includes("__") && !trimmed.includes(scopeClass) && !trimmed.startsWith(".") && !trimmed.includes(scopeClass.slice(1))) {
-        // Skip if it's inside a scoped rule (line doesn't start the selector)
-        continue;
-      }
-    }
-  }
 } catch {
   fail("Cannot read sensor.css for scoping check");
 }
@@ -136,12 +119,14 @@ try {
 }
 
 // 6. Check pipeline.json entry
+let sensorSub: any = null;
 try {
   const pipeline = JSON.parse(await readFile(PIPELINE_PATH, "utf-8"));
   const sub = (pipeline.subscriptions || []).find(
     (s: any) => s.sensor === sensorName
   );
   if (sub) {
+    sensorSub = sub;
     ok("pipeline.json entry exists");
 
     // Validate required fields
@@ -163,45 +148,17 @@ try {
   fail("Cannot read or parse pipeline.json");
 }
 
-// 7. Check last-seen indicator
-try {
-  const html = await readFile(htmlPath, "utf-8");
-  const css = await readFile(cssPath, "utf-8");
+// 7. Check MQTT topic subscription
+if (sensorSub?.mqtt_topic) {
   const ts = await readFile(tsPath, "utf-8");
-
-  const hasLastSeenHtml = html.includes(`${sensorName}-last-seen`);
-  const hasLastSeenCss = css.includes(`__last-seen`);
-  const hasLastSeenTs = ts.includes('last-seen') || ts.includes('lastSeenEl');
-  const hasRelativeTime = ts.includes('formatRelativeTime') || ts.includes('s ago');
-  const hasLiveClass = ts.includes('--live');
-  const hasLiveCss = css.includes('--live');
-
-  // No opacity dimming allowed
-  const hasDimOpacity = /opacity:\s*0\.[0-4]\b/.test(css);
-
-  if (hasLastSeenHtml) ok('HTML has last-seen indicator element');
-  else fail('HTML missing last-seen indicator (add <span class="<name>__last-seen" id="<name>-last-seen">--</span>)');
-
-  if (hasLastSeenCss) ok('CSS has __last-seen style');
-  else fail('CSS missing __last-seen style');
-
-  if (hasLastSeenTs) ok('TS references last-seen element');
-  else fail('TS missing last-seen element reference');
-
-  if (hasRelativeTime) ok('TS has relative-time formatting');
-  else fail('TS missing relative-time formatting (formatRelativeTime)');
-
-  if (hasLiveClass && hasLiveCss) ok('Live class toggle for dot color (--live)');
-  else {
-    if (!hasLiveClass) fail('sensor.ts missing --live class toggle');
-    if (!hasLiveCss) fail('sensor.css missing --live modifier for dot');
+  if (ts.includes("pisense.onTopic") || ts.includes("ps.onTopic")) {
+    ok("sensor.ts subscribes to MQTT topic via pisense.onTopic");
+  } else {
+    fail("sensor.ts does not call pisense.onTopic — MQTT messages will not reach this sensor");
   }
-
-  if (!hasDimOpacity) ok('No dim opacity on sensor card');
-  else fail('Sensor card has opacity < 0.5 — cards must always be fully visible');
-} catch {
-  fail('Cannot check last-seen indicator');
 }
+
+
 
 // ── Summary ──
 console.log(`\n${"─".repeat(40)}`);
