@@ -1,6 +1,10 @@
-# PiSense Dashboard
+<p align="center">
+  <img src="pisense-logo.png" alt="PiSense" width="400" />
+</p>
 
-A dark, retro-pixel dashboard for IoT sensors — powered by [Pi](https://pi.dev/). Tell Pi what to sense, and it builds the sensor for you.
+<h3 align="center">Powered by <a href="https://pi.dev/">Pi</a>. Tell Pi what to sense, and it builds the sensor for you.</h3>
+
+---
 
 ## Prerequisites
 
@@ -13,11 +17,6 @@ That's it. Everything else runs in containers.
 1. **Create your .env file**
    ```bash
    cp .env.example .env
-   ```
-
-   Edit `.env` and add your AI API key for Pi:
-   ```
-   ANTHROPIC_API_KEY=sk-ant-...
    ```
 
 2. **Start the dashboard**
@@ -34,12 +33,17 @@ That's it. Everything else runs in containers.
 
 4. **Validate a sensor**
    ```bash
-   docker compose run --rm pi bun run scripts/validate-sensor.ts <sensor-name>
+   bun run validate <sensor-name>
    ```
 
 5. **Stop everything** (data preserved in volumes)
    ```bash
    docker compose down
+   ```
+
+6. **Rebuild after code changes**
+   ```bash
+   docker compose up -d --build
    ```
 
 ## Adding Sensors
@@ -65,6 +69,13 @@ Now describe any sensor and Pi builds it:
 
 Pi builds HTML, CSS, TypeScript, and pipeline registration. The card appears on the dashboard automatically.
 
+## What Gets Rebuilt vs Live-Reloaded
+
+| Files | Change requires rebuild? |
+|-------|-------------------------|
+| `sensors/`, `pipeline.json`, `store.json`, `alerts.json` | No — volume-mounted, live reload |
+| `src/`, `Dockerfile`, `docker-compose.yml` | Yes — run `docker compose up -d --build` |
+
 ## Configuration
 
 All config lives in `.env`. Copy `.env.example` and fill in your values:
@@ -73,11 +84,15 @@ All config lives in `.env`. Copy `.env.example` and fill in your values:
 |----------|-------------|
 | `PORT` | Dashboard server port (default: `3000`) |
 | `INFLUX_URL` | InfluxDB connection URL (Docker: `http://influxdb:8086`) |
-| `INFLUX_TOKEN` | InfluxDB auth token (**required**) |
+| `INFLUX_TOKEN` | InfluxDB auth token — must match between InfluxDB and dashboard containers |
 | `INFLUX_ORG` | InfluxDB organization (default: `pisense`) |
 | `INFLUX_BUCKET` | InfluxDB bucket (default: `sensors`) |
-| `INFLUX_ADMIN_USERNAME` | InfluxDB initial admin username (first-run setup) |
-| `INFLUX_ADMIN_PASSWORD` | InfluxDB initial admin password (**required for setup**) |
+| `INFLUX_ADMIN_USERNAME` | InfluxDB initial admin username (first-run only) |
+| `INFLUX_ADMIN_PASSWORD` | InfluxDB initial admin password (first-run only) |
 | `MQTT_BROKER` | MQTT broker URL (Docker: `mqtt://mosquitto:1883`) |
 | `ANTHROPIC_API_KEY` | Anthropic API key for Pi |
 | `OPENAI_API_KEY` | OpenAI API key for Pi |
+
+## API Reference
+
+See [DASHBOARD_OWNER.md](DASHBOARD_OWNER.md) for the full `pisense` API, sensor structure, pipeline format, and validation rules.
