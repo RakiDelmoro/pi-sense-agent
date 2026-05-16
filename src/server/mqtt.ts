@@ -1,7 +1,7 @@
-import { MQTT_BROKER } from "../config";
-import { state, broadcast } from "../state";
-import { readPipeline } from "../watcher";
-import { writeInflux } from "../influx/client";
+import { MQTT_BROKER } from "./config";
+import { state, broadcast } from "./state";
+import { readPipeline } from "./watcher";
+import { writeInflux } from "./influx";
 
 export async function startMqttPipeline() {
   try {

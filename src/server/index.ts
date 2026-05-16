@@ -1,16 +1,14 @@
-import { stat, rm } from "node:fs/promises";
+import { stat } from "node:fs/promises";
 import { join } from "node:path";
-import { PORT, PUBLIC_DIR, SENSORS_DIR, UPLOADS_DIR, STORE_PATH, ALERTS_PATH, ALERT_HISTORY_PATH, PIPELINE_PATH, INFLUX_TOKEN } from "./config";
+import { PORT, PUBLIC_DIR, SENSORS_DIR, UPLOADS_DIR, STORE_PATH, ALERTS_PATH, ALERT_HISTORY_PATH, PIPELINE_PATH, serveTs, ensureDir } from "./config";
 import { state, broadcast } from "./state";
-import { checkInfluxStatus } from "./influx/client";
+import { checkInfluxStatus } from "./influx";
 import { setWatcherBroadcast, startFileWatcher } from "./watcher";
-import { startMqttPipeline, reloadPipelineSubscriptions } from "./mqtt/pipeline";
-import { evaluateAlerts } from "./routes/alerts";
+import { startMqttPipeline, reloadPipelineSubscriptions } from "./mqtt";
+import { evaluateAlerts } from "./routes";
 import { handleApiRoute } from "./routes";
 
-async function ensureDir(dir: string) {
-  try { await stat(dir); } catch { await Bun.write(join(dir, ".gitkeep"), ""); }
-}
+// ── Boot helpers ──
 
 async function ensureFile(path: string, content: string) {
   try {
@@ -43,7 +41,6 @@ async function updateStatus() {
 setInterval(updateStatus, 30000);
 setInterval(evaluateAlerts, 30000);
 
-// Device staleness check
 setInterval(() => {
   const staleMs = 5 * 60 * 1000;
   const now = Date.now();
@@ -63,9 +60,7 @@ const server = Bun.serve({
     const path = url.pathname;
 
     // WebSocket upgrade
-    if (req.headers.get("upgrade") === "websocket") {
-      return server.upgrade(req);
-    }
+    if (req.headers.get("upgrade") === "websocket") return server.upgrade(req);
 
     // API routes
     const apiRes = await handleApiRoute(req);
@@ -73,35 +68,11 @@ const server = Bun.serve({
 
     // Static files from public/
     const staticPath = path === "/" ? "/index.html" : path;
+    if (staticPath === "/app.js") return serveTs(join(PUBLIC_DIR, "app.ts"));
+    if (staticPath.endsWith(".ts")) return serveTs(join(PUBLIC_DIR, staticPath));
 
-    // Serve app.js by transpiling app.ts on-the-fly
-    if (staticPath === "/app.js") {
-      const tsPath = join(PUBLIC_DIR, "/app.ts");
-      try {
-        const result = await Bun.build({ entrypoints: [tsPath], target: "browser" });
-        const code = await result.outputs[0].text();
-        return new Response(code, { headers: { "Content-Type": "application/javascript" } });
-      } catch (err: any) {
-        return new Response(`Build error: ${err.message}`, { status: 500 });
-      }
-    }
-
-    const filePath = join(PUBLIC_DIR, staticPath);
-    const bunFile = Bun.file(filePath);
-
-    if (!(await bunFile.exists())) return new Response("Not Found", { status: 404 });
-
-    if (staticPath.endsWith(".ts")) {
-      try {
-        const result = await Bun.build({ entrypoints: [filePath], target: "browser" });
-        const code = await result.outputs[0].text();
-        return new Response(code, { headers: { "Content-Type": "application/javascript" } });
-      } catch (err: any) {
-        return new Response(`Build error: ${err.message}`, { status: 500 });
-      }
-    }
-
-    return new Response(bunFile);
+    const bunFile = Bun.file(join(PUBLIC_DIR, staticPath));
+    return (await bunFile.exists()) ? new Response(bunFile) : new Response("Not Found", { status: 404 });
   },
   websocket: {
     open: (ws) => {
@@ -135,14 +106,14 @@ const server = Bun.serve({
 
 console.log(`PiSense Dashboard running on http://localhost:${PORT}`);
 
-// ── Boot ──
+// ── Boot sequence ──
 (async () => {
   await ensureDir(SENSORS_DIR);
   await ensureDir(UPLOADS_DIR);
   await ensureFile(STORE_PATH, "{}");
   await ensureFile(ALERTS_PATH, "[]");
   await ensureFile(ALERT_HISTORY_PATH, "[]");
-  // Ensure pipeline.json isn't a directory
+
   try {
     const s = await stat(PIPELINE_PATH);
     if (s.isDirectory()) {

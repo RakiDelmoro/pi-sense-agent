@@ -1,4 +1,5 @@
 import { JWT_SECRET } from "./config";
+import { appStore } from "./store";
 
 export function hashPassword(password: string): string {
   let hash = 0;
@@ -29,14 +30,14 @@ export function verifyToken(token: string): any | null {
   }
 }
 
-export async function isAuthEnabled(readStore: () => Promise<Record<string, any>>): Promise<boolean> {
-  const store = await readStore();
+export async function isAuthEnabled(): Promise<boolean> {
+  const store = await appStore.read();
   const config = store["auth-config"];
   return !!(config && config.enabled);
 }
 
-export async function checkAuth(req: Request, readStore: () => Promise<Record<string, any>>): Promise<boolean> {
-  if (!(await isAuthEnabled(readStore))) return true;
+export async function checkAuth(req: Request): Promise<boolean> {
+  if (!(await isAuthEnabled())) return true;
   const auth = req.headers.get("Authorization");
   if (!auth || !auth.startsWith("Bearer ")) return false;
   return verifyToken(auth.slice(7)) !== null;

@@ -1,4 +1,5 @@
 import { join } from "node:path";
+import { stat, mkdir } from "node:fs/promises";
 
 // ── Paths ──
 // import.meta.dir here = /app/src/server/ (in Docker) or /workspace/src/server/ (dev)
@@ -37,3 +38,19 @@ console.log(`[config] PORT=${PORT}`);
 console.log(`[config] INFLUX_URL=${INFLUX_URL} ORG=${INFLUX_ORG} BUCKET=${INFLUX_BUCKET}`);
 console.log(`[config] INFLUX_TOKEN=${INFLUX_TOKEN ? '***configured***' : '***MISSING — InfluxDB writes disabled***'}`);
 console.log(`[config] MQTT_BROKER=${MQTT_BROKER}`);
+
+// ── Helpers ───────────────────────────────
+
+export async function serveTs(filePath: string): Promise<Response> {
+  try {
+    const result = await Bun.build({ entrypoints: [filePath], target: "browser" });
+    const code = await result.outputs[0].text();
+    return new Response(code, { headers: { "Content-Type": "application/javascript" } });
+  } catch (err: any) {
+    return new Response(`Build error: ${err.message}`, { status: 500 });
+  }
+}
+
+export async function ensureDir(dir: string) {
+  try { await stat(dir); } catch { await mkdir(dir, { recursive: true }); }
+}
