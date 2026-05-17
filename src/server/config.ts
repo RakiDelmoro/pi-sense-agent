@@ -1,3 +1,36 @@
+/*
+ * config.ts — Centralised Configuration
+ *
+ * This file is the single source of truth for all settings used across the
+ * server. Instead of scattering magic numbers and file paths throughout the
+ * code, everything is defined here so other modules just import what they need.
+ *
+ * Configuration values come from environment variables (which you can set in
+ * Docker, your shell, or a .env file), but each has a sensible default for
+ * local development so the server works out of the box.
+ *
+ * What's configured here:
+ * - File paths: where sensor folders live, where data files are stored,
+ *   where uploaded files go
+ * - Server port: which TCP port the HTTP server listens on (default 3000)
+ * - InfluxDB: URL, auth token, organisation name, and bucket (database) name
+ * - MQTT: broker URL (e.g. tcp://localhost:1883)
+ * - Auth: the secret key used to sign JWT tokens
+ * - Validation rules: which aggregation functions and fill modes are allowed
+ *   in queries, and what duration formats look like (e.g. "15m", "1h", "7d")
+ *
+ * Two helper functions are also exported:
+ * - `serveTs`: compiles a .ts file into JavaScript on the fly using Bun.build,
+ *   so the browser can run TypeScript files without a separate build step
+ * - `ensureDir`: creates a directory (and any parent directories) if it
+ *   doesn't already exist
+ *
+ * Key concepts:
+ * - Environment variables: values passed to the process from outside the code,
+ *   ideal for deployment-specific settings without changing code
+ * - import.meta.dir: a Bun feature that gives the directory of the current file,
+ *   used to resolve paths relative to the project root
+ */
 import { join } from "node:path";
 import { stat, mkdir } from "node:fs/promises";
 

@@ -1,3 +1,35 @@
+/*
+ * auth.ts — Authentication
+ *
+ * This file handles user authentication for the dashboard. It provides three
+ * main pieces:
+ *
+ * 1. Password hashing (`hashPassword`):
+ *    Converts a plain-text password into a hash (a scrambled, fixed-length
+ *    string). The same password always produces the same hash, so we can
+ *    compare without ever storing the original password.
+ *    NOTE: This uses a simple hash function, not a cryptographic one like
+ *    bcrypt. It's fine for a self-hosted/local dashboard, but not suitable
+ *    for production-facing applications.
+ *
+ * 2. JWT token creation (`createToken`) and verification (`verifyToken`):
+ *    JWT stands for "JSON Web Token". After login, the server creates a token
+ *    (a long string like "eyJhbG...xYz") and sends it to the browser.
+ *    The browser includes this token in every subsequent API request so the
+ *    server knows who's making the call. Tokens expire after 24 hours.
+ *    The token format is: header.payload.signature (three Base64 segments
+ *    separated by dots).
+ *
+ * 3. Auth check helper (`checkAuth`):
+ *    Used by every protected API route. If authentication is disabled in the
+ *    store settings, it always returns true (no login needed). If enabled,
+ *    it looks for a "Bearer <token>" header and verifies the token.
+ *
+ * Key concepts:
+ * - JWT (JSON Web Token): a standard way to represent claims between parties
+ * - Bearer token: the browser sends "Authorization: Bearer <token>" in headers
+ * - Auth toggle: the dashboard can run with or without login protection
+ */
 import { JWT_SECRET } from "./config";
 import { appStore } from "./store";
 

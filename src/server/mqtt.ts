@@ -1,3 +1,38 @@
+/*
+ * mqtt.ts — MQTT Pipeline
+ *
+ * This file manages the MQTT (Message Queuing Telemetry Transport) connection
+ * and data pipeline. MQTT is a lightweight messaging protocol commonly used in
+ * IoT (Internet of Things) — sensors publish readings to "topics" on a broker,
+ * and this server subscribes to those topics to receive the data.
+ *
+ * The pipeline works like this:
+ *   Sensor device → publishes message to MQTT topic → this server receives it
+ *   → parses the payload → converts to InfluxDB line protocol → writes to DB
+ *
+ * What this file does:
+ * - `startMqttPipeline()`: connects to the MQTT broker, then subscribes to all
+ *   topics listed in pipeline.json. When a message arrives:
+ *    1. Tracks the device as online and records the last-seen time
+ *    2. Forwards the raw message to any WebSocket clients subscribed to that topic
+ *    3. Parses the payload based on the configured format:
+ *       - JSON: extracts named fields from a JSON object
+ *       - value: a single numeric value (e.g. "23.5")
+ *       - csv: comma-separated values mapped to field names
+ *    4. Builds an InfluxDB line-protocol string and writes it to the database
+ *
+ * - `reloadPipelineSubscriptions()`: re-reads pipeline.json and updates which
+ *   MQTT topics the server is subscribed to, without restarting the server.
+ *
+ * Key concepts:
+ * - MQTT: a pub/sub messaging protocol — publishers send to topics, subscribers
+ *   receive messages on topics they've subscribed to
+ * - Broker: the central MQTT server that routes messages between publishers
+ *   and subscribers
+ * - Line protocol: InfluxDB's text format like "temperature,location=room1 value=23.5"
+ * - Device presence: the server marks devices as online when they send data and
+ *   offline when they go quiet (checked by a timer in index.ts)
+ */
 import { MQTT_BROKER } from "./config";
 import { state, broadcast } from "./state";
 import { readPipeline } from "./watcher";

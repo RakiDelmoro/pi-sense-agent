@@ -1,3 +1,35 @@
+/*
+ * index.ts — Main Entry Point
+ *
+ * This is where the entire backend server starts up. Think of it as the "main"
+ * function of the application. It does three big things:
+ *
+ * 1. Creates a Bun HTTP server that:
+ *    - Serves the web dashboard (HTML, CSS, JS) as static files
+ *    - Compiles TypeScript files on the fly so the browser can run them
+ *    - Handles WebSocket connections for real-time updates (live sensor data,
+ *      device status, alerts)
+ *    - Routes API requests to the handlers in routes.ts
+ *
+ * 2. Runs a boot sequence when the server first starts:
+ *    - Makes sure required folders (sensors/, uploads/) exist
+ *    - Creates default data files (store.json, alerts.json, etc.) if missing
+ *    - Checks InfluxDB and MQTT connection status
+ *    - Starts watching the sensors/ folder for new/removed sensors
+ *    - Connects to the MQTT broker and subscribes to sensor topics
+ *
+ * 3. Runs periodic background tasks:
+ *    - Every 30 seconds: checks if InfluxDB and MQTT are still reachable
+ *    - Every 30 seconds: evaluates alert rules (e.g. "temperature > 30")
+ *    - Every 60 seconds: marks devices as offline if no data received in 5 min
+ *
+ * Key concepts:
+ * - Bun.serve: Bun's built-in HTTP + WebSocket server
+ * - WebSocket upgrade: the server promotes certain HTTP requests to WebSocket
+ *   connections for two-way real-time communication
+ * - import.meta.dir: Bun feature that gives the directory of the current file,
+ *   used to resolve relative paths regardless of where you run the server from
+ */
 import { stat } from "node:fs/promises";
 import { join } from "node:path";
 import { PORT, PUBLIC_DIR, SENSORS_DIR, UPLOADS_DIR, STORE_PATH, ALERTS_PATH, ALERT_HISTORY_PATH, PIPELINE_PATH, serveTs, ensureDir } from "./config";

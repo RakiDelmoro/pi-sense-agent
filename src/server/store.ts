@@ -1,3 +1,35 @@
+/*
+ * store.ts — Persistent JSON File Store
+ *
+ * This file provides a simple way to save and load data that needs to survive
+ * server restarts. It stores data as JSON files on disk, with an in-memory
+ * cache so reads are fast after the first load.
+ *
+ * How it works:
+ * - `createJsonStore(path, fallback)` is a factory function: you give it a file
+ *   path and a default value, and it returns an object with `read()` and
+ *   `write()` methods.
+ * - On first `read()`: loads the file from disk. If the file doesn't exist or
+ *   is invalid, returns the fallback default value instead.
+ * - On subsequent `read()`: returns the cached data (no disk I/O).
+ * - On `write()`: updates both the in-memory cache AND writes to disk, so the
+ *   data persists across server restarts.
+ *
+ * Three store instances are created:
+ * - appStore:      general app settings (dashboard layout, auth config, etc.)
+ * - alerts:        list of alert rules (e.g. "temperature above 30°C")
+ * - alertHistory:  log of alert events that have been triggered
+ *
+ * Also exports `parseDuration(d)`: converts a human-readable duration string
+ * like "15m" or "1h" into milliseconds. Used by alert evaluation to enforce
+ * cooldown periods (how long before the same alert can fire again).
+ *
+ * Key concepts:
+ * - JSON file persistence: saving structured data as human-readable text files
+ * - In-memory cache: keeping a copy in RAM so repeated reads are instant
+ * - Factory pattern: createJsonStore creates a new store instance per file
+ * - Duration parsing: "15m" → 900000 (milliseconds), "1h" → 3600000, etc.
+ */
 import { STORE_PATH, ALERTS_PATH, ALERT_HISTORY_PATH } from "./config";
 
 // ── Generic JSON file store with in-memory cache ──

@@ -1,3 +1,38 @@
+/*
+ * influx.ts — InfluxDB Integration
+ *
+ * This file is responsible for all communication with InfluxDB, the time-series
+ * database where sensor readings are stored. It has three groups of functions:
+ *
+ * 1. Low-level API calls:
+ *    - queryInflux(flux):    sends a Flux query string to InfluxDB and returns
+ *                            the result (CSV text or parsed JSON)
+ *    - writeInflux(line):    writes a data point using InfluxDB's "line protocol"
+ *                            format (e.g. "temperature,location=room1 value=23.5")
+ *    - deleteInfluxMeasurement(measurement): deletes all data for a given
+ *                            measurement name (used when removing a sensor)
+ *    - checkInfluxStatus():  pings InfluxDB's /health endpoint to see if it's up
+ *
+ * 2. Query builders (these construct Flux query strings from simple parameters):
+ *    - buildLatestQuery:     gets the single most recent value for a field
+ *    - buildHistoryQuery:    gets a time-series of values, with optional
+ *                            aggregation (e.g. average every 5 minutes) and
+ *                            fill modes (for gaps in data)
+ *    - buildStatsQuery:      gets summary statistics (min, max, mean, count,
+ *                            last, first) for a field over a time range
+ *
+ * 3. CSV parsers (InfluxDB returns data as CSV, these convert it to JS objects):
+ *    - parseInfluxCsv:       turns InfluxDB CSV into an array of {value, time, field}
+ *    - parseStatsCsv:        turns multi-yield stats CSV into {min, max, mean, ...}
+ *
+ * Key concepts:
+ * - InfluxDB v2: a time-series database optimised for timestamped data (like
+ *   sensor readings). Data is organised into measurements, fields, and tags.
+ * - Flux: InfluxDB's query language (similar to SQL but designed for time-series)
+ * - Line protocol: InfluxDB's text format for writing data points efficiently
+ * - Aggregation window: grouping data points into time buckets (e.g. 5-minute
+ *   intervals) and applying a function like mean or max to each bucket
+ */
 import { INFLUX_URL, INFLUX_TOKEN, INFLUX_ORG, INFLUX_BUCKET, AGG_FNS, FILL_MODES, DURATION_RE } from "./config";
 
 // ── Client ──────────────────────────────────

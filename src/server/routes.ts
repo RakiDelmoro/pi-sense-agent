@@ -1,3 +1,40 @@
+/*
+ * routes.ts — All API Endpoints
+ *
+ * This file defines every HTTP API route the server exposes. The frontend
+ * (web dashboard) calls these endpoints to read sensor data, configure alerts,
+ * manage sensors, upload files, and more.
+ *
+ * The routes are organised into these sections:
+ *
+ * - Auth:        Login, check if auth is enabled (no password needed to see these)
+ * - Sensors:     List sensors, read sensor files (HTML/CSS/TS), delete a sensor
+ * - Data:        Query InfluxDB for latest values, historical time-series, stats,
+ *                and CSV exports
+ * - MQTT:        Publish messages to MQTT, list subscribed/seen topics
+ * - Devices:     Show which MQTT devices are online and when they were last seen
+ * - Store:       Generic key-value persistence (dashboard layout, settings, etc.)
+ * - Alerts:      Create/read/update/delete alert rules, view alert history
+ * - Files:       Upload, list, download, and delete files (e.g. sensor images)
+ * - InfluxDB:    Proxy requests directly to InfluxDB (used by the dashboard's
+ *                built-in data explorer)
+ *
+ * The main function is `handleApiRoute` — it receives every incoming request,
+ * parses the body, checks authentication (except for auth endpoints), and then
+ * delegates to the matching section handler above.
+ *
+ * Alert evaluation (`evaluateAlerts`) also lives here. It runs on a timer
+ * (see index.ts) and checks each alert rule against the latest sensor value.
+ * If a rule triggers, it broadcasts an event over WebSocket, logs it to
+ * alert-history, and optionally calls a webhook URL.
+ *
+ * Key concepts:
+ * - REST API: each URL path + HTTP method (GET/POST/PUT/DELETE) maps to an action
+ * - JWT auth gate: all routes except /api/auth/* require a valid Bearer token
+ *   if authentication is enabled
+ * - InfluxDB Flux: the query language used to ask InfluxDB for data; we build
+ *   Flux query strings in influx.ts and send them to the database
+ */
 // routes.ts — All API endpoints
 
 import { appStore, alerts, alertHistory, parseDuration } from "./store";
