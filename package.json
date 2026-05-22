@@ -1,0 +1,13 @@
+{
+  "name": "pi-sense-agent",
+  "version": "1.0.0",
+  "scripts": {
+    "dev": "docker compose up --build",
+    "dev:down": "docker compose down",
+    "dev:logs": "docker compose logs -f dashboard",
+    "pi": "docker compose run --rm pi"
+  },
+  "dependencies": {
+    "mqtt": "^5.15.1"
+  }
+}

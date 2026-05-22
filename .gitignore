@@ -1,0 +1,14 @@
+node_modules/
+.pi/
+.env
+*.env.local
+public/app.js
+sensors/
+pipeline.json
+store.json
+alerts.json
+alert-history.json
+uploads/
+screenshots/
+prototype.html
+dashboard-empty.html

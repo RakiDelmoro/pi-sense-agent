@@ -1,0 +1,13 @@
+/* ── Bundled Fonts (no internet required) ── */
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 400;
+  src: url(fonts/i7dPIFZifjKcF5UAWdDRUEY.ttf) format('truetype');
+}
+@font-face {
+  font-family: 'Space Mono';
+  font-style: normal;
+  font-weight: 700;
+  src: url(fonts/i7dMIFZifjKcF5UAWdDRaPpZYFI.ttf) format('truetype');
+}

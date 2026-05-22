@@ -1,0 +1,78 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PiSense Dashboard</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/fonts/fonts.css" />
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <header class="header">
+      <div class="header__left">
+        <h1 class="title">PiSense</h1>
+        <span class="tagline">Your AI sensor builder</span>
+      </div>
+      <div class="header__center" id="header-center"></div>
+      <div class="header__right">
+        <div class="header__status-group">
+          <div class="header__status"><span class="status-dot" id="status-influxdb"></span><span>InfluxDB</span></div>
+          <div class="header__status"><span class="status-dot" id="status-mqtt"></span><span>MQTT</span></div>
+        </div>
+        <button class="header__icon-btn" id="search-toggle" title="Search sensors">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+        </button>
+        <button class="header__icon-btn" id="theme-toggle" title="Toggle theme">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
+        </button>
+        <button class="header__icon-btn" id="settings-toggle" title="Settings">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1-2.83 2.83l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-4 0v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1 0-4h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 2.83-2.83l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 4 0v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 0 4h-.09a1.65 1.65 0 0 0-1.51 1z"/></svg>
+        </button>
+        <div class="header__notify-badge" id="notify-badge" title="Notifications">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"/><path d="M13.73 21a2 2 0 0 1-3.46 0"/></svg>
+          <span class="badge-count" id="badge-count"></span>
+        </div>
+      </div>
+    </header>
+    <aside class="sidebar sidebar--hidden" id="sidebar">
+      <nav class="sidebar__nav" id="sidebar-nav"></nav>
+    </aside>
+    <div class="tab-bar tab-bar--hidden" id="tab-bar">
+      <div class="tab-bar__tabs" id="tab-bar-tabs"></div>
+      <button class="tab-bar__add" id="tab-bar-add">+</button>
+    </div>
+    <div class="search-bar search-bar--hidden" id="search-bar">
+      <input type="text" class="search-bar__input" id="search-input" placeholder="Filter sensors..." />
+    </div>
+    <main class="main" id="main">
+      <div class="empty-state" id="empty-state">
+        <div class="empty-state__welcome">
+          <span class="empty-state__flair">···</span>
+          <p class="empty-state__title">Tell Pi what to sense</p>
+          <div class="empty-state__line"></div>
+        </div>
+        <p class="empty-state__prompt" id="cycling-prompt"></p>
+      </div>
+      <div class="sensor-grid" id="sensor-grid"></div>
+    </main>
+    <div class="settings-panel settings-panel--hidden" id="settings-panel">
+      <div class="settings-panel__content" id="settings-content"></div>
+    </div>
+    <div class="notify-panel notify-panel--hidden" id="notify-panel">
+      <div class="notify-panel__content" id="notify-content"></div>
+    </div>
+    <div class="modal" id="confirm-modal">
+      <div class="modal__box">
+        <p class="modal__text" id="modal-text"></p>
+        <div class="modal__actions">
+          <button class="modal__btn modal__btn--confirm" id="modal-confirm">REMOVE</button>
+          <button class="modal__btn modal__btn--cancel" id="modal-cancel">CANCEL</button>
+        </div>
+      </div>
+    </div>
+    <script src="/app.js"></script>
+  </body>
+</html>
